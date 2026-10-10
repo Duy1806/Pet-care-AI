@@ -1,0 +1,41 @@
+
+# Python environments
+.venv/
+venv/
+backend/.venv/
+
+# Dataset and trained model weights
+dataset/
+models/*.pth
+models/*.pt
+models/*.onnx
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and temporary files
+*.log
+.DS_Store
+Thumbs.db
+
+# Documents
+*.docx
+*.pdf
+
+# Training feature caches
+models/*_feature_cache/
+
+# Local test images
+/dog.jpg
+/hamter.jpg
+/meo.jpg
+/meoanh.jpg
+/soc.jpg

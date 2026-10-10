@@ -1,0 +1,9 @@
+﻿fastapi
+uvicorn[standard]
+pydantic
+python-multipart
+Pillow
+torch
+torchvision
+pytest
+httpx
