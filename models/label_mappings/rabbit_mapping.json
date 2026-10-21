@@ -1,0 +1,17 @@
+{
+  "species": "rabbit",
+  "breed_to_idx": {
+    "californian": 0,
+    "holland-lop": 1,
+    "lionhead": 2,
+    "new-zealand": 3
+  },
+  "idx_to_breed": {
+    "0": "californian",
+    "1": "holland-lop",
+    "2": "lionhead",
+    "3": "new-zealand"
+  },
+  "num_classes": 4,
+  "input_size": 224
+}

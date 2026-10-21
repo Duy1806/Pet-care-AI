@@ -1,0 +1,33 @@
+{
+  "species": "cat",
+  "breed_to_idx": {
+    "Abyssinian": 0,
+    "Bengal": 1,
+    "Birman": 2,
+    "Bombay": 3,
+    "British_Shorthair": 4,
+    "Egyptian_Mau": 5,
+    "Maine_Coon": 6,
+    "Persian": 7,
+    "Ragdoll": 8,
+    "Russian_Blue": 9,
+    "Siamese": 10,
+    "Sphynx": 11
+  },
+  "idx_to_breed": {
+    "0": "Abyssinian",
+    "1": "Bengal",
+    "2": "Birman",
+    "3": "Bombay",
+    "4": "British_Shorthair",
+    "5": "Egyptian_Mau",
+    "6": "Maine_Coon",
+    "7": "Persian",
+    "8": "Ragdoll",
+    "9": "Russian_Blue",
+    "10": "Siamese",
+    "11": "Sphynx"
+  },
+  "num_classes": 12,
+  "input_size": 224
+}

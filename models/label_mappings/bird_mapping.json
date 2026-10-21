@@ -1,0 +1,29 @@
+{
+  "species": "bird",
+  "breed_to_idx": {
+    "ALEXANDRINE PARAKEET": 0,
+    "CANARY": 1,
+    "COCKATOO": 2,
+    "EASTERN ROSELLA": 3,
+    "GOLDEN PARAKEET": 4,
+    "GOULDIAN FINCH": 5,
+    "HYACINTH MACAW": 6,
+    "JAVA SPARROW": 7,
+    "RAINBOW LORIKEET": 8,
+    "ROSY FACED LOVEBIRD": 9
+  },
+  "idx_to_breed": {
+    "0": "ALEXANDRINE PARAKEET",
+    "1": "CANARY",
+    "2": "COCKATOO",
+    "3": "EASTERN ROSELLA",
+    "4": "GOLDEN PARAKEET",
+    "5": "GOULDIAN FINCH",
+    "6": "HYACINTH MACAW",
+    "7": "JAVA SPARROW",
+    "8": "RAINBOW LORIKEET",
+    "9": "ROSY FACED LOVEBIRD"
+  },
+  "num_classes": 10,
+  "input_size": 224
+}

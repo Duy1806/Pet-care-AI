@@ -1,0 +1,27 @@
+{
+  "species_to_idx": {
+    "bird": 0,
+    "cat": 1,
+    "dog": 2,
+    "hamster": 3,
+    "rabbit": 4
+  },
+  "idx_to_species": {
+    "0": "bird",
+    "1": "cat",
+    "2": "dog",
+    "3": "hamster",
+    "4": "rabbit"
+  },
+  "input_size": 224,
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ]
+}
