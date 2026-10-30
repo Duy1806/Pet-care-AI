@@ -1,0 +1,721 @@
+/**
+ * PawCare AI — Home Screen (Trang chủ)
+ *
+ * Real-time Pet Care Dashboard:
+ * - Real user profile & theme toggle
+ * - Real pet switcher connected to Supabase Database
+ * - Quick feature shortcuts (Quét giống, Dinh dưỡng, Tiêm phòng, Cấp cứu)
+ * - Today's Care Checklist with toggleable state
+ * - Add Pet Modal with instant database persistence
+ * - Daily AI Pet Care Tip
+ */
+import React, { useState, useCallback, useEffect } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+
+import { useAppTheme } from '@/presentation/theme';
+import { useAuthStore } from '@/presentation/stores/useAuthStore';
+import { usePetStore } from '@/presentation/stores/usePetStore';
+import { ThemeToggle } from '@/presentation/components/ThemeToggle';
+import { NetworkBanner } from '@/presentation/components/NetworkBanner';
+import { AddPetModal } from '@/presentation/components/AddPetModal';
+
+interface ReminderItem {
+  id: string;
+  title: string;
+  time: string;
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  color: string;
+  done: boolean;
+}
+
+const INITIAL_REMINDERS: ReminderItem[] = [
+  {
+    id: 'r1',
+    title: 'Cho ăn bữa sáng dinh dưỡng',
+    time: '07:30',
+    icon: 'bowl-mix',
+    color: '#4CAF50',
+    done: true,
+  },
+  {
+    id: 'r2',
+    title: 'Uống men vi sinh tiêu hóa',
+    time: '12:00',
+    icon: 'pill',
+    color: '#FF9800',
+    done: false,
+  },
+  {
+    id: 'r3',
+    title: 'Dắt đi dạo công viên chiều',
+    time: '17:30',
+    icon: 'dog-service',
+    color: '#2196F3',
+    done: false,
+  },
+  {
+    id: 'r4',
+    title: 'Vệ sinh tai & chải lông',
+    time: '20:00',
+    icon: 'brush',
+    color: '#9C27B0',
+    done: false,
+  },
+];
+
+export default function HomeScreen() {
+  const { colors, typography: typo, spacing, radius } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
+  const { pets, selectedPet, selectPet, loadPets, isLoading: isPetsLoading } = usePetStore();
+
+  const [reminders, setReminders] = useState<ReminderItem[]>(INITIAL_REMINDERS);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  useEffect(() => {
+    void loadPets();
+  }, [loadPets]);
+
+  const handleToggleReminder = useCallback((id: string) => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setReminders((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, done: !item.done } : item,
+      ),
+    );
+  }, []);
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <NetworkBanner />
+
+      {/* Top Header */}
+      <View
+        style={[
+          styles.header,
+          {
+            paddingTop: insets.top + spacing.sm,
+            paddingHorizontal: spacing.lg,
+            paddingBottom: spacing.sm,
+            backgroundColor: colors.surface,
+            borderBottomColor: colors.border,
+            borderBottomWidth: 1,
+          },
+        ]}
+      >
+        <View style={styles.userInfoRow}>
+          <View
+            style={[
+              styles.avatarContainer,
+              { backgroundColor: colors.primaryContainer },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="paw"
+              size={24}
+              color={colors.primary}
+            />
+          </View>
+          <View style={{ marginLeft: spacing.sm }}>
+            <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
+              Xin chào 👋
+            </Text>
+            <Text style={[typo.titleLarge, { color: colors.text }]}>
+              {user?.fullName || 'Chủ nuôi thú cưng'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.headerActions}>
+          <ThemeToggle />
+          <Pressable
+            hitSlop={8}
+            onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+            style={[
+              styles.bellButton,
+              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+            ]}
+          >
+            <MaterialCommunityIcons
+              name="bell-outline"
+              size={20}
+              color={colors.text}
+            />
+            <View style={[styles.notificationDot, { backgroundColor: colors.accent }]} />
+          </Pressable>
+        </View>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + spacing.xxl,
+        }}
+      >
+        {/* Section 1: Real Pet Card Carousel */}
+        <View style={{ marginTop: spacing.md, paddingHorizontal: spacing.lg }}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[typo.titleMedium, { color: colors.text }]}>
+              Thú cưng của bạn
+            </Text>
+            <Pressable
+              onPress={() => setIsAddModalOpen(true)}
+              hitSlop={8}
+            >
+              <Text style={[typo.labelMedium, { color: colors.primary }]}>
+                + Thêm thú cưng
+              </Text>
+            </Pressable>
+          </View>
+
+          {isPetsLoading && pets.length === 0 ? (
+            <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={[typo.bodySmall, { color: colors.textSecondary, marginTop: 8 }]}>
+                Đang tải dữ liệu thú cưng từ cơ sở dữ liệu...
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: spacing.md, paddingVertical: spacing.xs }}
+            >
+              {pets.map((pet) => {
+                const isSelected = selectedPet?.id === pet.id;
+                return (
+                  <Pressable
+                    key={pet.id}
+                    onPress={() => {
+                      void Haptics.selectionAsync();
+                      selectPet(pet);
+                    }}
+                    style={[
+                      styles.petCard,
+                      {
+                        backgroundColor: isSelected ? colors.primaryContainer : colors.surface,
+                        borderColor: isSelected ? colors.primary : colors.border,
+                        borderRadius: radius.xl,
+                        padding: spacing.md,
+                      },
+                    ]}
+                  >
+                    <View style={styles.petCardTop}>
+                      <View
+                        style={[
+                          styles.petAvatar,
+                          { backgroundColor: pet.species === 'dog' ? '#FFE0B2' : '#E1BEE7' },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name={pet.species === 'dog' ? 'dog' : 'cat'}
+                          size={28}
+                          color="#4E342E"
+                        />
+                      </View>
+                      {isSelected && (
+                        <View
+                          style={[
+                            styles.activeBadge,
+                            { backgroundColor: colors.primary },
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name="check"
+                            size={12}
+                            color={colors.onPrimary}
+                          />
+                        </View>
+                      )}
+                    </View>
+
+                    <Text
+                      style={[
+                        typo.titleLarge,
+                        { color: colors.text, marginTop: spacing.xs },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {pet.name}
+                    </Text>
+                    <Text
+                      style={[typo.bodySmall, { color: colors.textSecondary }]}
+                      numberOfLines={1}
+                    >
+                      {pet.breedName || (pet.species === 'dog' ? 'Chó' : 'Mèo')}
+                    </Text>
+
+                    <View
+                      style={[
+                        styles.petStatPill,
+                        { backgroundColor: colors.surface, marginTop: spacing.sm },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name="scale-bathroom"
+                        size={14}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={[
+                          typo.labelSmall,
+                          { color: colors.text, marginLeft: 4, fontWeight: '700' },
+                        ]}
+                      >
+                        {pet.weightKg} kg
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+
+              {/* Add Pet Card */}
+              <Pressable
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setIsAddModalOpen(true);
+                }}
+                style={[
+                  styles.addPetCard,
+                  {
+                    borderColor: colors.border,
+                    borderRadius: radius.xl,
+                    padding: spacing.md,
+                    minHeight: 140,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.addPetIconBox,
+                    { backgroundColor: colors.surfaceElevated },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="plus"
+                    size={24}
+                    color={colors.primary}
+                  />
+                </View>
+                <Text style={[typo.labelMedium, { color: colors.primary, marginTop: spacing.sm }]}>
+                  Thêm bé cưng
+                </Text>
+              </Pressable>
+            </ScrollView>
+          )}
+        </View>
+
+        {/* Section 2: Quick Actions Grid */}
+        <View style={{ marginTop: spacing.lg, paddingHorizontal: spacing.lg }}>
+          <Text style={[typo.titleMedium, { color: colors.text, marginBottom: spacing.sm }]}>
+            Chức năng nổi bật
+          </Text>
+
+          <View style={styles.quickGrid}>
+            {/* Action 1: Quét AI */}
+            <Pressable
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/(app)/breed-scanner' as any);
+              }}
+              style={[
+                styles.actionCard,
+                { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.lg },
+              ]}
+            >
+              <View
+                style={[
+                  styles.actionIconBox,
+                  { backgroundColor: '#E0F2FE' },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="camera-iris"
+                  size={26}
+                  color="#0284C7"
+                />
+              </View>
+              <Text style={[typo.labelLarge, { color: colors.text, marginTop: spacing.xs }]}>
+                Nhận diện giống
+              </Text>
+              <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
+                Quét AI Vision
+              </Text>
+            </Pressable>
+
+            {/* Action 2: Dinh dưỡng */}
+            <Pressable
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/(app)/nutrition' as any);
+              }}
+              style={[
+                styles.actionCard,
+                { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.lg },
+              ]}
+            >
+              <View
+                style={[
+                  styles.actionIconBox,
+                  { backgroundColor: '#FEF3C7' },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="food-drumstick"
+                  size={26}
+                  color="#D97706"
+                />
+              </View>
+              <Text style={[typo.labelLarge, { color: colors.text, marginTop: spacing.xs }]}>
+                Gợi ý dinh dưỡng
+              </Text>
+              <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
+                Tính calo RER/MER
+              </Text>
+            </Pressable>
+
+            {/* Action 3: Sổ tiêm phòng */}
+            <Pressable
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/(app)/dev-test' as any);
+              }}
+              style={[
+                styles.actionCard,
+                { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.lg },
+              ]}
+            >
+              <View
+                style={[
+                  styles.actionIconBox,
+                  { backgroundColor: '#DCFCE7' },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="needle"
+                  size={26}
+                  color="#16A34A"
+                />
+              </View>
+              <Text style={[typo.labelLarge, { color: colors.text, marginTop: spacing.xs }]}>
+                Sổ tiêm chủng
+              </Text>
+              <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
+                Nhắc ngừa bệnh
+              </Text>
+            </Pressable>
+
+            {/* Action 4: Hồ sơ & Bác sĩ */}
+            <Pressable
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                router.push('/(app)/profile' as any);
+              }}
+              style={[
+                styles.actionCard,
+                { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.lg },
+              ]}
+            >
+              <View
+                style={[
+                  styles.actionIconBox,
+                  { backgroundColor: '#FCE7F3' },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="account-details"
+                  size={26}
+                  color="#DB2777"
+                />
+              </View>
+              <Text style={[typo.labelLarge, { color: colors.text, marginTop: spacing.xs }]}>
+                Hồ sơ thú cưng
+              </Text>
+              <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
+                Quản lý chi tiết
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Section 3: Today's Reminders Checklist */}
+        <View style={{ marginTop: spacing.lg, paddingHorizontal: spacing.lg }}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[typo.titleMedium, { color: colors.text }]}>
+              Lịch chăm sóc hôm nay
+            </Text>
+            <Text style={[typo.labelSmall, { color: colors.textSecondary }]}>
+              {reminders.filter((r) => r.done).length}/{reminders.length} hoàn thành
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.remindersCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderRadius: radius.xl,
+                padding: spacing.md,
+                marginTop: spacing.xs,
+              },
+            ]}
+          >
+            {reminders.map((item, idx) => (
+              <Pressable
+                key={item.id}
+                onPress={() => handleToggleReminder(item.id)}
+                style={[
+                  styles.reminderRow,
+                  {
+                    borderBottomColor: colors.border,
+                    borderBottomWidth: idx < reminders.length - 1 ? 1 : 0,
+                    paddingVertical: spacing.smd,
+                  },
+                ]}
+              >
+                <View style={styles.reminderLeft}>
+                  <View
+                    style={[
+                      styles.reminderIconBox,
+                      { backgroundColor: item.color + '20' },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={item.icon}
+                      size={20}
+                      color={item.color}
+                    />
+                  </View>
+                  <View style={{ marginLeft: spacing.sm, flex: 1 }}>
+                    <Text
+                      style={[
+                        typo.bodyMedium,
+                        {
+                          color: item.done ? colors.textTertiary : colors.text,
+                          textDecorationLine: item.done ? 'line-through' : 'none',
+                          fontWeight: item.done ? '400' : '600',
+                        },
+                      ]}
+                    >
+                      {item.title}
+                    </Text>
+                    <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
+                      {item.time}
+                    </Text>
+                  </View>
+                </View>
+
+                <MaterialCommunityIcons
+                  name={item.done ? 'checkbox-marked-circle' : 'checkbox-blank-circle-outline'}
+                  size={24}
+                  color={item.done ? colors.success : colors.textTertiary}
+                />
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Section 4: Daily AI Pet Care Tip */}
+        <View style={{ marginTop: spacing.lg, paddingHorizontal: spacing.lg }}>
+          <View
+            style={[
+              styles.tipCard,
+              {
+                backgroundColor: colors.primaryContainer,
+                borderColor: colors.primary,
+                borderRadius: radius.xl,
+                padding: spacing.md,
+              },
+            ]}
+          >
+            <View style={styles.tipHeader}>
+              <MaterialCommunityIcons
+                name="lightbulb-on"
+                size={22}
+                color={colors.primary}
+              />
+              <Text
+                style={[
+                  typo.labelLarge,
+                  { color: colors.primary, marginLeft: spacing.xs, fontWeight: '700' },
+                ]}
+              >
+                Mẹo chăm sóc từ AI hôm nay
+              </Text>
+            </View>
+            <Text
+              style={[
+                typo.bodySmall,
+                { color: colors.text, marginTop: spacing.xs, lineHeight: 20 },
+              ]}
+            >
+              {selectedPet ? (
+                <>
+                  Đối với bé <Text style={{ fontWeight: '700' }}>{selectedPet.name}</Text> ({selectedPet.breedName || 'Thú cưng'}), hãy duy trì khẩu phần ăn đều đặn theo cân nặng {selectedPet.weightKg} kg và cho uống đủ nước mỗi ngày để phòng tránh sỏi thận.
+                </>
+              ) : (
+                'Hãy thêm thú cưng đầu tiên của bạn vào hệ thống để AI đưa ra lời khuyên dinh dưỡng và theo dõi sức khỏe chuyên biệt nhất!'
+              )}
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Add Pet Modal */}
+      <AddPetModal
+        visible={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  userInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatarContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  bellButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 9,
+    right: 9,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  petCard: {
+    width: 156,
+    borderWidth: 1.5,
+  },
+  petCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  petAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  activeBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  petStatPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  addPetCard: {
+    width: 130,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addPetIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  actionCard: {
+    width: '48%',
+    padding: 14,
+    borderWidth: 1,
+  },
+  actionIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  remindersCard: {
+    borderWidth: 1,
+  },
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  reminderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    paddingRight: 8,
+  },
+  reminderIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tipCard: {
+    borderWidth: 1,
+  },
+  tipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+});

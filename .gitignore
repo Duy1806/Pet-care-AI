@@ -1,41 +1,56 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# Python environments
-.venv/
-venv/
-backend/.venv/
+# dependencies
+node_modules/
 
-# Dataset and trained model weights
-dataset/
-models/*.pth
-models/*.pt
-models/*.onnx
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
 
-# Python cache
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.mypy_cache/
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
 
-# Local environment and secrets
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
+
 .env
 .env.*
 !.env.example
+*.jks
+*.keystore
 
-# Logs and temporary files
-*.log
-.DS_Store
-Thumbs.db
-
-# Documents
-*.docx
-*.pdf
-
-# Training feature caches
-models/*_feature_cache/
-
-# Local test images
-/dog.jpg
-/hamter.jpg
-/meo.jpg
-/meoanh.jpg
-/soc.jpg
+# Python / FastAPI Backend
+backend/venv/
+backend/**/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/

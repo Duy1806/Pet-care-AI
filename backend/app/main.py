@@ -1,7 +1,9 @@
-﻿
+import base64
 from io import BytesIO
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from PIL import Image, UnidentifiedImageError
 
 from app.schemas.nutrition import NutritionRequest
@@ -18,6 +20,18 @@ app = FastAPI(
     version="0.3.0",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class Base64PredictRequest(BaseModel):
+    image_base64: str
+
 
 @app.get("/")
 def home():
@@ -27,6 +41,7 @@ def home():
         "endpoints": {
             "health": "/health",
             "pet_prediction": "/pet/predict",
+            "pet_prediction_base64": "/pet/predict-base64",
             "nutrition_evaluation": "/nutrition/evaluate",
             "documentation": "/docs",
         },
@@ -50,24 +65,67 @@ def evaluate_nutrition(pet: NutritionRequest):
     return evaluate_nutrition_profile(pet)
 
 
+@app.post("/pet/predict-base64")
+async def predict_pet_image_base64(payload: Base64PredictRequest):
+    raw_b64 = payload.image_base64.strip()
+    if "," in raw_b64:
+        raw_b64 = raw_b64.split(",", 1)[1]
+
+    try:
+        image_bytes = base64.b64decode(raw_b64)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Chuoi base64 khong hop le.",
+        )
+
+    if not image_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail="Du lieu anh rong.",
+        )
+
+    try:
+        with Image.open(BytesIO(image_bytes)) as original:
+            original.verify()
+
+        with Image.open(BytesIO(image_bytes)) as original:
+            image_format = original.format
+            image = original.copy()
+
+        result = predict_pet(image)
+
+        return {
+            "image_format": image_format,
+            "image_size": {
+                "width": image.width,
+                "height": image.height,
+            },
+            "prediction": result,
+        }
+
+    except (UnidentifiedImageError, OSError) as e:
+        import logging
+        logging.warning("File khong phai anh hop le: %s", str(e))
+        raise HTTPException(
+            status_code=400,
+            detail="File khong phai anh hop le hoac anh bi loi.",
+        )
+
+    except Exception:
+        import logging
+        logging.exception("Loi khi nhan dien anh thu cung")
+        raise HTTPException(
+            status_code=500,
+            detail="Khong the nhan dien anh. Kiem tra log backend.",
+        )
+
+
 @app.post("/pet/predict")
 async def predict_pet_image(
     file: UploadFile = File(..., description="Anh thu cung can nhan dien"),
 ):
-    allowed_content_types = {
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/bmp",
-    }
-
-    if file.content_type not in allowed_content_types:
-        raise HTTPException(
-            status_code=415,
-            detail="Chi chap nhan anh JPEG, PNG, WEBP hoac BMP.",
-        )
-
-    max_file_size = 10 * 1024 * 1024  # 10 MB
+    max_file_size = 15 * 1024 * 1024  # 15 MB
     image_bytes = await file.read(max_file_size + 1)
 
     if not image_bytes:
@@ -79,7 +137,7 @@ async def predict_pet_image(
     if len(image_bytes) > max_file_size:
         raise HTTPException(
             status_code=413,
-            detail="Anh vuot qua dung luong toi da 10 MB.",
+            detail="Anh vuot qua dung luong toi da 15 MB.",
         )
 
     try:
@@ -102,14 +160,15 @@ async def predict_pet_image(
             "prediction": result,
         }
 
-    except (UnidentifiedImageError, OSError):
+    except (UnidentifiedImageError, OSError) as e:
+        import logging
+        logging.warning("File khong phai anh hop le: %s", str(e))
         raise HTTPException(
             status_code=400,
             detail="File khong phai anh hop le hoac anh bi loi.",
         )
 
     except Exception:
-        # Ghi loi chi tiet o terminal server; khong tra traceback cho client.
         import logging
         logging.exception("Loi khi nhan dien anh thu cung")
 
@@ -120,5 +179,3 @@ async def predict_pet_image(
 
     finally:
         await file.close()
-
-
