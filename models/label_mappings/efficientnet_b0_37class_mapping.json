@@ -1,0 +1,234 @@
+{
+    "model_name": "EfficientNet-B0",
+    "num_classes": 37,
+    "input_size": [
+        224,
+        224
+    ],
+    "label_indexing": "0-based",
+    "dataset": "Oxford-IIIT Pet",
+    "classes": {
+        "0": {
+            "model_label": 0,
+            "original_class_id": 1,
+            "breed_name": "Abyssinian",
+            "species": "Cat"
+        },
+        "1": {
+            "model_label": 1,
+            "original_class_id": 2,
+            "breed_name": "american_bulldog",
+            "species": "Dog"
+        },
+        "2": {
+            "model_label": 2,
+            "original_class_id": 3,
+            "breed_name": "american_pit_bull_terrier",
+            "species": "Dog"
+        },
+        "3": {
+            "model_label": 3,
+            "original_class_id": 4,
+            "breed_name": "basset_hound",
+            "species": "Dog"
+        },
+        "4": {
+            "model_label": 4,
+            "original_class_id": 5,
+            "breed_name": "beagle",
+            "species": "Dog"
+        },
+        "5": {
+            "model_label": 5,
+            "original_class_id": 6,
+            "breed_name": "Bengal",
+            "species": "Cat"
+        },
+        "6": {
+            "model_label": 6,
+            "original_class_id": 7,
+            "breed_name": "Birman",
+            "species": "Cat"
+        },
+        "7": {
+            "model_label": 7,
+            "original_class_id": 8,
+            "breed_name": "Bombay",
+            "species": "Cat"
+        },
+        "8": {
+            "model_label": 8,
+            "original_class_id": 9,
+            "breed_name": "boxer",
+            "species": "Dog"
+        },
+        "9": {
+            "model_label": 9,
+            "original_class_id": 10,
+            "breed_name": "British_Shorthair",
+            "species": "Cat"
+        },
+        "10": {
+            "model_label": 10,
+            "original_class_id": 11,
+            "breed_name": "chihuahua",
+            "species": "Dog"
+        },
+        "11": {
+            "model_label": 11,
+            "original_class_id": 12,
+            "breed_name": "Egyptian_Mau",
+            "species": "Cat"
+        },
+        "12": {
+            "model_label": 12,
+            "original_class_id": 13,
+            "breed_name": "english_cocker_spaniel",
+            "species": "Dog"
+        },
+        "13": {
+            "model_label": 13,
+            "original_class_id": 14,
+            "breed_name": "english_setter",
+            "species": "Dog"
+        },
+        "14": {
+            "model_label": 14,
+            "original_class_id": 15,
+            "breed_name": "german_shorthaired",
+            "species": "Dog"
+        },
+        "15": {
+            "model_label": 15,
+            "original_class_id": 16,
+            "breed_name": "great_pyrenees",
+            "species": "Dog"
+        },
+        "16": {
+            "model_label": 16,
+            "original_class_id": 17,
+            "breed_name": "havanese",
+            "species": "Dog"
+        },
+        "17": {
+            "model_label": 17,
+            "original_class_id": 18,
+            "breed_name": "japanese_chin",
+            "species": "Dog"
+        },
+        "18": {
+            "model_label": 18,
+            "original_class_id": 19,
+            "breed_name": "keeshond",
+            "species": "Dog"
+        },
+        "19": {
+            "model_label": 19,
+            "original_class_id": 20,
+            "breed_name": "leonberger",
+            "species": "Dog"
+        },
+        "20": {
+            "model_label": 20,
+            "original_class_id": 21,
+            "breed_name": "Maine_Coon",
+            "species": "Cat"
+        },
+        "21": {
+            "model_label": 21,
+            "original_class_id": 22,
+            "breed_name": "miniature_pinscher",
+            "species": "Dog"
+        },
+        "22": {
+            "model_label": 22,
+            "original_class_id": 23,
+            "breed_name": "newfoundland",
+            "species": "Dog"
+        },
+        "23": {
+            "model_label": 23,
+            "original_class_id": 24,
+            "breed_name": "Persian",
+            "species": "Cat"
+        },
+        "24": {
+            "model_label": 24,
+            "original_class_id": 25,
+            "breed_name": "pomeranian",
+            "species": "Dog"
+        },
+        "25": {
+            "model_label": 25,
+            "original_class_id": 26,
+            "breed_name": "pug",
+            "species": "Dog"
+        },
+        "26": {
+            "model_label": 26,
+            "original_class_id": 27,
+            "breed_name": "Ragdoll",
+            "species": "Cat"
+        },
+        "27": {
+            "model_label": 27,
+            "original_class_id": 28,
+            "breed_name": "Russian_Blue",
+            "species": "Cat"
+        },
+        "28": {
+            "model_label": 28,
+            "original_class_id": 29,
+            "breed_name": "saint_bernard",
+            "species": "Dog"
+        },
+        "29": {
+            "model_label": 29,
+            "original_class_id": 30,
+            "breed_name": "samoyed",
+            "species": "Dog"
+        },
+        "30": {
+            "model_label": 30,
+            "original_class_id": 31,
+            "breed_name": "scottish_terrier",
+            "species": "Dog"
+        },
+        "31": {
+            "model_label": 31,
+            "original_class_id": 32,
+            "breed_name": "shiba_inu",
+            "species": "Dog"
+        },
+        "32": {
+            "model_label": 32,
+            "original_class_id": 33,
+            "breed_name": "Siamese",
+            "species": "Cat"
+        },
+        "33": {
+            "model_label": 33,
+            "original_class_id": 34,
+            "breed_name": "Sphynx",
+            "species": "Cat"
+        },
+        "34": {
+            "model_label": 34,
+            "original_class_id": 35,
+            "breed_name": "staffordshire_bull_terrier",
+            "species": "Dog"
+        },
+        "35": {
+            "model_label": 35,
+            "original_class_id": 36,
+            "breed_name": "wheaten_terrier",
+            "species": "Dog"
+        },
+        "36": {
+            "model_label": 36,
+            "original_class_id": 37,
+            "breed_name": "yorkshire_terrier",
+            "species": "Dog"
+        }
+    }
+}

@@ -1,4 +1,4 @@
-
+﻿
 from io import BytesIO
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -33,9 +33,6 @@ def home():
         "supported_species": [
             "dog",
             "cat",
-            "bird",
-            "rabbit",
-            "hamster",
         ],
     }
 
@@ -123,3 +120,5 @@ async def predict_pet_image(
 
     finally:
         await file.close()
+
+
