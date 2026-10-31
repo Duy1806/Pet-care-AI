@@ -28,9 +28,8 @@ import * as Haptics from 'expo-haptics';
 import { useAppTheme } from '@/presentation/theme';
 import { usePetStore } from '@/presentation/stores/usePetStore';
 import { useVaccinationStore } from '@/presentation/stores/useVaccinationStore';
-import { AddVaccinationModal } from '@/presentation/components/AddVaccinationModal';
 import { PrimaryButton } from '@/presentation/components/PrimaryButton';
-import type { VaccinationRecord, VaccinationType, VaccinationStatus } from '@/domain/entities/Vaccination';
+import type { VaccinationRecord, VaccinationType } from '@/domain/entities/Vaccination';
 
 type StatusFilter = 'all' | 'planned' | 'completed' | 'overdue';
 
@@ -58,8 +57,6 @@ export default function VaccinationScreen() {
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | VaccinationType>('all');
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [addModalDefaultStatus, setAddModalDefaultStatus] = useState<VaccinationStatus>('completed');
 
   // Mark as Completed Modal State
   const [selectedRecordToComplete, setSelectedRecordToComplete] = useState<VaccinationRecord | null>(null);
@@ -269,8 +266,11 @@ export default function VaccinationScreen() {
 
           <Pressable
             onPress={() => {
-              setAddModalDefaultStatus('completed');
-              setIsAddModalOpen(true);
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push({
+                pathname: '/(app)/add-vaccination',
+                params: { petId: selectedPet?.id, defaultStatus: 'completed' },
+              } as any);
             }}
             style={[styles.addTopBtn, { backgroundColor: colors.primary, borderRadius: radius.full }]}
           >
@@ -523,8 +523,11 @@ export default function VaccinationScreen() {
             <View style={{ flexDirection: 'row', gap: 10, marginTop: spacing.lg }}>
               <Pressable
                 onPress={() => {
-                  setAddModalDefaultStatus('completed');
-                  setIsAddModalOpen(true);
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push({
+                    pathname: '/(app)/add-vaccination',
+                    params: { petId: selectedPet?.id, defaultStatus: 'completed' },
+                  } as any);
                 }}
                 style={[styles.addEmptyBtn, { backgroundColor: colors.primary, borderRadius: radius.lg }]}
               >
@@ -536,8 +539,11 @@ export default function VaccinationScreen() {
 
               <Pressable
                 onPress={() => {
-                  setAddModalDefaultStatus('planned');
-                  setIsAddModalOpen(true);
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push({
+                    pathname: '/(app)/add-vaccination',
+                    params: { petId: selectedPet?.id, defaultStatus: 'planned' },
+                  } as any);
                 }}
                 style={[
                   styles.addEmptyBtn,
@@ -806,23 +812,6 @@ export default function VaccinationScreen() {
           </View>
         </View>
       </Modal>
-
-      {/* ADD / SCHEDULE VACCINATION MODAL */}
-      {isAddModalOpen && (
-        <AddVaccinationModal
-          key={`${selectedPet?.id ?? 'default'}_${addModalDefaultStatus}`}
-          visible={isAddModalOpen}
-          defaultStatus={addModalDefaultStatus}
-          onClose={() => {
-            setIsAddModalOpen(false);
-            if (selectedPet?.id) {
-              void loadVaccinations(selectedPet.id);
-            }
-          }}
-          pets={pets}
-          selectedPetId={selectedPet?.id}
-        />
-      )}
     </View>
   );
 }

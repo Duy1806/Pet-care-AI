@@ -120,6 +120,15 @@ export default function AppLayout() {
           href: null,
         }}
       />
+
+      {/* Trang thêm mũi tiêm & lên lịch hẹn tiêm phòng */}
+      <Tabs.Screen
+        name="add-vaccination"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
     </Tabs>
   );
 }
