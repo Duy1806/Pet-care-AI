@@ -66,6 +66,11 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
   }
 
   async getByPetId(petId: string): Promise<VaccinationRecord[]> {
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!UUID_REGEX.test(petId)) {
+      return [];
+    }
+
     try {
       const { data, error } = await supabase
         .from('vaccinations')
@@ -85,13 +90,15 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
   }
 
   async getUpcomingAlerts(petIds: string[]): Promise<VaccinationRecord[]> {
-    if (!petIds || petIds.length === 0) return [];
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const validIds = (petIds || []).filter((id) => UUID_REGEX.test(id));
+    if (validIds.length === 0) return [];
 
     try {
       const { data, error } = await supabase
         .from('vaccinations')
         .select('*')
-        .in('pet_id', petIds)
+        .in('pet_id', validIds)
         .is('deleted_at', null)
         .not('next_due_at', 'is', null)
         .order('next_due_at', { ascending: true });
@@ -180,6 +187,11 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
   }
 
   async delete(id: string): Promise<void> {
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!UUID_REGEX.test(id)) {
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('vaccinations')
@@ -189,7 +201,10 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
       if (error) {
         throw new Error(mapSupabaseError(error));
       }
-    } catch (e) {
+    } catch (e: any) {
+      if (e instanceof Error && e.message) {
+        throw e;
+      }
       throw new Error(mapSupabaseError(e));
     }
   }

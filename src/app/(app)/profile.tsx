@@ -46,8 +46,12 @@ export default function ProfileScreen() {
         {
           text: 'Xóa',
           style: 'destructive',
-          onPress: () => {
-            void deletePet(petId);
+          onPress: async () => {
+            try {
+              await deletePet(petId);
+            } catch (err: any) {
+              Alert.alert('Không thể xóa', err?.message || 'Có lỗi xảy ra khi xóa hồ sơ thú cưng.');
+            }
           },
         },
       ],

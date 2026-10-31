@@ -192,12 +192,16 @@ export default function PetProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            await deletePet(currentPet.id);
-            if (pets.length > 1) {
-              const remaining = pets.filter((p) => p.id !== currentPet.id);
-              setSelectedId(remaining[0].id);
-            } else {
-              router.back();
+            try {
+              await deletePet(currentPet.id);
+              if (pets.length > 1) {
+                const remaining = pets.filter((p) => p.id !== currentPet.id);
+                setSelectedId(remaining[0].id);
+              } else {
+                router.back();
+              }
+            } catch (err: any) {
+              Alert.alert('Không thể xóa', err?.message || 'Có lỗi xảy ra khi xóa hồ sơ thú cưng.');
             }
           },
         },

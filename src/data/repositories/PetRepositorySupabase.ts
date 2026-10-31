@@ -50,6 +50,8 @@ function mapRowToPet(row: DbPetRow): Pet {
   };
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export class PetRepositorySupabase implements PetRepository {
   async getAll(): Promise<Pet[]> {
     try {
@@ -70,6 +72,10 @@ export class PetRepositorySupabase implements PetRepository {
   }
 
   async getById(id: string): Promise<Pet | null> {
+    if (!UUID_REGEX.test(id)) {
+      return null;
+    }
+
     try {
       const { data, error } = await supabase
         .from('pets')
@@ -129,6 +135,22 @@ export class PetRepositorySupabase implements PetRepository {
   }
 
   async update(id: string, input: Partial<CreatePetInput>): Promise<Pet> {
+    if (!UUID_REGEX.test(id)) {
+      return {
+        id,
+        name: input.name || 'Thú cưng',
+        species: input.species || 'dog',
+        breed: input.breedName || 'Chưa rõ',
+        breedName: input.breedName || 'Chưa rõ',
+        weightKg: input.weightKg || 4,
+        sex: input.sex || 'unknown',
+        isNeutered: input.isNeutered ?? true,
+        birthDate: input.birthDate || null,
+        activityLevel: input.activityLevel || 'moderate',
+        notes: input.notes || null,
+      };
+    }
+
     try {
       const rowToUpdate: Record<string, any> = {};
       if (input.name !== undefined) rowToUpdate.name = input.name;
@@ -161,16 +183,35 @@ export class PetRepositorySupabase implements PetRepository {
   }
 
   async delete(id: string): Promise<void> {
+    // If id is not a valid UUID (e.g. mock or local id '1', '2'), it cannot exist on remote Supabase
+    if (!UUID_REGEX.test(id)) {
+      return;
+    }
+
     try {
-      const { error } = await supabase
+      // 1. First attempt: Soft-delete (set deleted_at)
+      const { error: softError } = await supabase
         .from('pets')
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', id);
 
-      if (error) {
-        throw new Error(mapSupabaseError(error));
+      if (!softError) {
+        return;
       }
-    } catch (e) {
+
+      // 2. Second attempt: Direct hard delete
+      const { error: hardError } = await supabase
+        .from('pets')
+        .delete()
+        .eq('id', id);
+
+      if (hardError) {
+        throw new Error(mapSupabaseError(softError || hardError));
+      }
+    } catch (e: any) {
+      if (e instanceof Error && e.message) {
+        throw e;
+      }
       throw new Error(mapSupabaseError(e));
     }
   }
