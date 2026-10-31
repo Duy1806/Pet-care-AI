@@ -1,21 +1,23 @@
 /**
- * PawCare AI — Vaccination Tracker Screen (Sổ tiêm chủng & Phòng bệnh)
+ * PawCare AI — Professional Vaccination Tracker Screen (Sổ tiêm chủng & Phòng bệnh)
  *
- * Full-featured vaccination log:
- * - Switch between pets
- * - Filter by type: Vaccine, Deworming, Flea & Tick
- * - Visual status badges: Up to date / Upcoming / Overdue
- * - Add new records persisted directly to Supabase
- * - Delete records with confirmation
+ * Professional features:
+ * - Real-time statistics: Administered (Đã tiêm), Planned (Chờ tiêm / Kế hoạch), Overdue (Quá hạn)
+ * - Multi-dimensional filtering: Status tabs + Category pills
+ * - Quick Action "Đánh dấu đã tiêm" with next booster scheduling
+ * - 2-step automated push notification reminders (1 day before + due date morning)
+ * - Clean deletion and update mechanisms synced to Supabase
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -27,16 +29,43 @@ import { useAppTheme } from '@/presentation/theme';
 import { usePetStore } from '@/presentation/stores/usePetStore';
 import { useVaccinationStore } from '@/presentation/stores/useVaccinationStore';
 import { AddVaccinationModal } from '@/presentation/components/AddVaccinationModal';
-import type { VaccinationRecord, VaccinationType } from '@/domain/entities/Vaccination';
+import { PrimaryButton } from '@/presentation/components/PrimaryButton';
+import type { VaccinationRecord, VaccinationType, VaccinationStatus } from '@/domain/entities/Vaccination';
+
+type StatusFilter = 'all' | 'planned' | 'completed' | 'overdue';
+
+function getTodayString(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+function getDefaultNextDue(type: VaccinationType): string {
+  const d = new Date();
+  if (type === 'vaccine') {
+    d.setFullYear(d.getFullYear() + 1);
+  } else if (type === 'deworming') {
+    d.setMonth(d.getMonth() + 3);
+  } else {
+    d.setMonth(d.getMonth() + 1);
+  }
+  return d.toISOString().split('T')[0];
+}
 
 export default function VaccinationScreen() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { pets, selectedPet, selectPet, loadPets } = usePetStore();
-  const { records, loadVaccinations, deleteVaccination, isLoading } = useVaccinationStore();
+  const { records, loadVaccinations, deleteVaccination, markAsCompleted, isLoading } = useVaccinationStore();
 
-  const [activeTab, setActiveTab] = useState<'all' | VaccinationType>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | VaccinationType>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addModalDefaultStatus, setAddModalDefaultStatus] = useState<VaccinationStatus>('completed');
+
+  // Mark as Completed Modal State
+  const [selectedRecordToComplete, setSelectedRecordToComplete] = useState<VaccinationRecord | null>(null);
+  const [completeAdministeredAt, setCompleteAdministeredAt] = useState<string>(getTodayString());
+  const [completeNextDueAt, setCompleteNextDueAt] = useState<string>('');
+  const [completeClinic, setCompleteClinic] = useState<string>('');
 
   useEffect(() => {
     if (pets.length === 0) {
@@ -58,7 +87,7 @@ export default function VaccinationScreen() {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       Alert.alert(
         'Xóa mũi tiêm',
-        `Bạn có chắc chắn muốn xóa bản ghi "${record.name}" khỏi sổ sức khỏe?`,
+        `Bạn có chắc chắn muốn xóa bản ghi "${record.name}" khỏi sổ sức khỏe của bé?`,
         [
           { text: 'Hủy', style: 'cancel' },
           {
@@ -76,53 +105,138 @@ export default function VaccinationScreen() {
     [selectedPet, deleteVaccination]
   );
 
-  const filteredRecords = records.filter((r) => {
-    if (activeTab === 'all') return true;
-    return r.type === activeTab;
-  });
+  const handleOpenCompleteModal = (record: VaccinationRecord) => {
+    void Haptics.selectionAsync();
+    setSelectedRecordToComplete(record);
+    setCompleteAdministeredAt(getTodayString());
+    setCompleteNextDueAt(getDefaultNextDue(record.type));
+    setCompleteClinic(record.vetClinic || '');
+  };
 
-  const getDueStatus = (nextDueAt: string | null) => {
-    if (!nextDueAt) return null;
+  const handleConfirmMarkAsCompleted = async () => {
+    if (!selectedRecordToComplete || !selectedPet?.id) return;
+
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const success = await markAsCompleted(
+      selectedRecordToComplete,
+      completeAdministeredAt.trim() || getTodayString(),
+      completeNextDueAt.trim() || null,
+      completeClinic.trim() || null,
+      selectedPet.name
+    );
+
+    if (success) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setSelectedRecordToComplete(null);
+    }
+  };
+
+  const getDueDaysDiff = useCallback((targetDateStr: string | null): number | null => {
+    if (!targetDateStr) return null;
     const now = new Date();
     now.setHours(0, 0, 0, 0);
-    const dueDate = new Date(nextDueAt);
+    const dueDate = new Date(targetDateStr);
     dueDate.setHours(0, 0, 0, 0);
+    return Math.round((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  }, []);
 
-    const diffDays = Math.round((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const getDueStatus = useCallback(
+    (targetDateStr: string | null) => {
+      const diffDays = getDueDaysDiff(targetDateStr);
+      if (diffDays === null) return null;
 
-    if (diffDays < 0) {
+      if (diffDays < 0) {
+        return {
+          label: `Quá hạn ${Math.abs(diffDays)} ngày`,
+          color: '#DC2626',
+          bg: '#FEF2F2',
+          icon: 'alert-circle' as const,
+          isOverdue: true,
+        };
+      } else if (diffDays === 0) {
+        return {
+          label: 'Hôm nay đến lịch tiêm!',
+          color: '#EA580C',
+          bg: '#FFF7ED',
+          icon: 'bell-ring' as const,
+          isOverdue: false,
+        };
+      } else if (diffDays === 1) {
+        return {
+          label: 'Ngày mai đến lịch tiêm',
+          color: '#D97706',
+          bg: '#FFFBEB',
+          icon: 'clock-alert-outline' as const,
+          isOverdue: false,
+        };
+      } else if (diffDays <= 14) {
+        return {
+          label: `Còn ${diffDays} ngày nữa`,
+          color: '#2563EB',
+          bg: '#EFF6FF',
+          icon: 'calendar-clock' as const,
+          isOverdue: false,
+        };
+      }
       return {
-        label: `Quá hạn ${Math.abs(diffDays)} ngày`,
-        color: '#C62828',
-        bg: '#FFEBEE',
-        icon: 'alert-circle' as const,
+        label: `Hẹn tiêm: ${targetDateStr}`,
+        color: '#16A34A',
+        bg: '#F0FDF4',
+        icon: 'calendar-check' as const,
+        isOverdue: false,
       };
-    } else if (diffDays === 0) {
-      return {
-        label: 'Đến hạn hôm nay',
-        color: '#E65100',
-        bg: '#FFF3E0',
-        icon: 'bell-ring' as const,
-      };
-    } else if (diffDays <= 14) {
-      return {
-        label: `Còn ${diffDays} ngày nữa`,
-        color: '#F57F17',
-        bg: '#FFFDE7',
-        icon: 'clock-alert-outline' as const,
-      };
+    },
+    [getDueDaysDiff]
+  );
+
+  // Statistics Calculation
+  const stats = useMemo(() => {
+    let completedCount = 0;
+    let plannedCount = 0;
+    let overdueCount = 0;
+
+    for (const r of records) {
+      if (r.status === 'completed') {
+        completedCount++;
+        if (r.nextDueAt) {
+          const diff = getDueDaysDiff(r.nextDueAt);
+          if (diff !== null && diff < 0) overdueCount++;
+        }
+      } else {
+        plannedCount++;
+        const target = r.nextDueAt || r.administeredAt;
+        const diff = getDueDaysDiff(target);
+        if (diff !== null && diff < 0) overdueCount++;
+      }
     }
-    return {
-      label: `Hẹn tiêm: ${nextDueAt}`,
-      color: '#2E7D32',
-      bg: '#E8F5E9',
-      icon: 'calendar-check' as const,
-    };
-  };
+    return { completedCount, plannedCount, overdueCount };
+  }, [records, getDueDaysDiff]);
+
+  // Filter logic
+  const filteredRecords = useMemo(() => {
+    return records.filter((r) => {
+      // 1. Type filter
+      if (typeFilter !== 'all' && r.type !== typeFilter) return false;
+
+      // 2. Status filter
+      if (statusFilter === 'all') return true;
+
+      const targetDate = r.nextDueAt || (r.status === 'planned' ? r.administeredAt : null);
+      const diff = getDueDaysDiff(targetDate);
+      const isOverdue = diff !== null && diff < 0;
+
+      if (statusFilter === 'overdue') return isOverdue;
+      if (statusFilter === 'planned') return r.status === 'planned';
+      if (statusFilter === 'completed') return r.status === 'completed';
+
+      return true;
+    });
+  }, [records, typeFilter, statusFilter, getDueDaysDiff]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Top Header with Back Button */}
+      {/* Header Bar */}
       <View
         style={[
           styles.header,
@@ -146,15 +260,18 @@ export default function VaccinationScreen() {
           </Pressable>
           <View style={{ flex: 1, marginLeft: spacing.sm }}>
             <Text style={[typo.headlineMedium, { color: colors.text }]}>
-              Sổ tiêm chủng
+              Sổ tiêm chủng thông minh
             </Text>
             <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
-              Theo dõi lịch tiêm phòng & ngừa bệnh
+              Theo dõi lịch tiêm phòng & tự động nhắc lịch
             </Text>
           </View>
 
           <Pressable
-            onPress={() => setIsAddModalOpen(true)}
+            onPress={() => {
+              setAddModalDefaultStatus('completed');
+              setIsAddModalOpen(true);
+            }}
             style={[styles.addTopBtn, { backgroundColor: colors.primary, borderRadius: radius.full }]}
           >
             <MaterialCommunityIcons name="plus" size={18} color={colors.onPrimary} />
@@ -213,44 +330,7 @@ export default function VaccinationScreen() {
         )}
       </View>
 
-      {/* Filter Tabs */}
-      <View style={[styles.filterBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        {[
-          { key: 'all', label: 'Tất cả' },
-          { key: 'vaccine', label: 'Vắc-xin' },
-          { key: 'deworming', label: 'Tẩy giun' },
-          { key: 'flea_tick', label: 'Ve rận' },
-        ].map((tab) => {
-          const isActive = activeTab === tab.key;
-          return (
-            <Pressable
-              key={tab.key}
-              onPress={() => {
-                void Haptics.selectionAsync();
-                setActiveTab(tab.key as any);
-              }}
-              style={[
-                styles.filterTab,
-                { borderBottomColor: isActive ? colors.primary : 'transparent' },
-              ]}
-            >
-              <Text
-                style={[
-                  typo.labelMedium,
-                  {
-                    color: isActive ? colors.primary : colors.textSecondary,
-                    fontWeight: isActive ? '700' : '500',
-                  },
-                ]}
-              >
-                {tab.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {/* Content List */}
+      {/* Main Scroll Content */}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -258,11 +338,160 @@ export default function VaccinationScreen() {
           paddingBottom: insets.bottom + spacing.xxl,
         }}
       >
+        {/* STATS OVERVIEW CARDS */}
+        <View style={styles.statsContainer}>
+          <Pressable
+            onPress={() => setStatusFilter(statusFilter === 'completed' ? 'all' : 'completed')}
+            style={[
+              styles.statCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: statusFilter === 'completed' ? '#16A34A' : colors.border,
+                borderRadius: radius.lg,
+              },
+            ]}
+          >
+            <View style={[styles.statIconBadge, { backgroundColor: '#DCFCE7' }]}>
+              <MaterialCommunityIcons name="check-circle-outline" size={20} color="#16A34A" />
+            </View>
+            <Text style={[typo.headlineLarge, { color: '#16A34A', marginTop: 4 }]}>
+              {stats.completedCount}
+            </Text>
+            <Text style={[typo.labelSmall, { color: colors.textSecondary }]}>Đã tiêm</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setStatusFilter(statusFilter === 'planned' ? 'all' : 'planned')}
+            style={[
+              styles.statCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: statusFilter === 'planned' ? '#2563EB' : colors.border,
+                borderRadius: radius.lg,
+              },
+            ]}
+          >
+            <View style={[styles.statIconBadge, { backgroundColor: '#DBEAFE' }]}>
+              <MaterialCommunityIcons name="calendar-clock-outline" size={20} color="#2563EB" />
+            </View>
+            <Text style={[typo.headlineLarge, { color: '#2563EB', marginTop: 4 }]}>
+              {stats.plannedCount}
+            </Text>
+            <Text style={[typo.labelSmall, { color: colors.textSecondary }]}>Chờ tiêm</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setStatusFilter(statusFilter === 'overdue' ? 'all' : 'overdue')}
+            style={[
+              styles.statCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: statusFilter === 'overdue' ? '#DC2626' : colors.border,
+                borderRadius: radius.lg,
+              },
+            ]}
+          >
+            <View style={[styles.statIconBadge, { backgroundColor: '#FEE2E2' }]}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={20} color="#DC2626" />
+            </View>
+            <Text style={[typo.headlineLarge, { color: '#DC2626', marginTop: 4 }]}>
+              {stats.overdueCount}
+            </Text>
+            <Text style={[typo.labelSmall, { color: colors.textSecondary }]}>Quá hạn</Text>
+          </Pressable>
+        </View>
+
+        {/* STATUS FILTER TABS */}
+        <View style={[styles.filterBar, { backgroundColor: colors.surface, borderRadius: radius.lg, borderColor: colors.border, borderWidth: 1 }]}>
+          {[
+            { key: 'all', label: 'Tất cả' },
+            { key: 'planned', label: 'Chờ tiêm' },
+            { key: 'completed', label: 'Đã tiêm' },
+            { key: 'overdue', label: 'Quá hạn' },
+          ].map((tab) => {
+            const isActive = statusFilter === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  setStatusFilter(tab.key as StatusFilter);
+                }}
+                style={[
+                  styles.filterTab,
+                  isActive && {
+                    backgroundColor: colors.primaryContainer,
+                    borderRadius: radius.md,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    typo.labelMedium,
+                    {
+                      color: isActive ? colors.primary : colors.textSecondary,
+                      fontWeight: isActive ? '700' : '500',
+                    },
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* CATEGORY FILTER PILLS (All / Vaccine / Deworming / Flea & Tick) */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, marginVertical: spacing.md }}
+        >
+          {[
+            { key: 'all', label: 'Tất cả loại thuốc' },
+            { key: 'vaccine', label: '💉 Vắc-xin' },
+            { key: 'deworming', label: '💊 Tẩy giun' },
+            { key: 'flea_tick', label: '🛡️ Ve rận & Giun tim' },
+          ].map((pill) => {
+            const isActive = typeFilter === pill.key;
+            return (
+              <Pressable
+                key={pill.key}
+                onPress={() => {
+                  void Haptics.selectionAsync();
+                  setTypeFilter(pill.key as any);
+                }}
+                style={[
+                  styles.categoryPill,
+                  {
+                    backgroundColor: isActive ? colors.primary : colors.surfaceElevated,
+                    borderColor: isActive ? colors.primary : colors.border,
+                    borderRadius: radius.full,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    typo.labelSmall,
+                    {
+                      color: isActive ? colors.onPrimary : colors.text,
+                      fontWeight: isActive ? '700' : '500',
+                    },
+                  ]}
+                >
+                  {pill.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {/* RECORDS LIST */}
         {isLoading && filteredRecords.length === 0 ? (
           <View style={{ paddingVertical: 40, alignItems: 'center' }}>
             <ActivityIndicator color={colors.primary} size="large" />
             <Text style={[typo.bodySmall, { color: colors.textSecondary, marginTop: 8 }]}>
-              Đang tải sổ tiêm chủng từ máy chủ...
+              Đang đồng bộ sổ tiêm chủng...
             </Text>
           </View>
         ) : filteredRecords.length === 0 ? (
@@ -276,58 +505,116 @@ export default function VaccinationScreen() {
               <MaterialCommunityIcons name="needle" size={40} color={colors.primary} />
             </View>
             <Text style={[typo.titleLarge, { color: colors.text, marginTop: spacing.md }]}>
-              Chưa có mũi tiêm nào
+              {statusFilter === 'planned'
+                ? 'Không có lịch hẹn chờ tiêm'
+                : statusFilter === 'overdue'
+                ? 'Tuyệt vời! Không có lịch tiêm nào quá hạn'
+                : 'Chưa có thông tin tiêm chủng'}
             </Text>
             <Text
               style={[
                 typo.bodySmall,
-                { color: colors.textSecondary, textAlign: 'center', marginTop: 4, paddingHorizontal: 20 },
+                { color: colors.textSecondary, textAlign: 'center', marginTop: 6, paddingHorizontal: 20 },
               ]}
             >
-              Hãy thêm thông tin tiêm phòng hoặc tẩy giun của bé {selectedPet?.name || 'cưng'} để ứng dụng tự động nhắc lịch khi đến ngày hẹn.
+              Thêm các mũi tiêm đã tiêm hoặc đặt lịch hẹn sắp tới để hệ thống tự động nhắc nhở trước 1 ngày và đúng ngày hẹn cho bạn.
             </Text>
 
-            <Pressable
-              onPress={() => setIsAddModalOpen(true)}
-              style={[styles.addEmptyBtn, { backgroundColor: colors.primary, borderRadius: radius.lg }]}
-            >
-              <MaterialCommunityIcons name="plus" size={20} color={colors.onPrimary} />
-              <Text style={[typo.labelLarge, { color: colors.onPrimary, marginLeft: 6 }]}>
-                Thêm mũi tiêm ngay
-              </Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: spacing.lg }}>
+              <Pressable
+                onPress={() => {
+                  setAddModalDefaultStatus('completed');
+                  setIsAddModalOpen(true);
+                }}
+                style={[styles.addEmptyBtn, { backgroundColor: colors.primary, borderRadius: radius.lg }]}
+              >
+                <MaterialCommunityIcons name="check-circle-outline" size={18} color={colors.onPrimary} />
+                <Text style={[typo.labelMedium, { color: colors.onPrimary, marginLeft: 6 }]}>
+                  Thêm mũi đã tiêm
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  setAddModalDefaultStatus('planned');
+                  setIsAddModalOpen(true);
+                }}
+                style={[
+                  styles.addEmptyBtn,
+                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border, borderWidth: 1, borderRadius: radius.lg },
+                ]}
+              >
+                <MaterialCommunityIcons name="calendar-clock" size={18} color={colors.text} />
+                <Text style={[typo.labelMedium, { color: colors.text, marginLeft: 6 }]}>
+                  Hẹn lịch tiêm tới
+                </Text>
+              </Pressable>
+            </View>
           </View>
         ) : (
           filteredRecords.map((rec) => {
-            const dueStatus = getDueStatus(rec.nextDueAt);
-            const typeIcon =
-              rec.type === 'vaccine'
-                ? 'needle'
-                : rec.type === 'deworming'
-                ? 'pill'
-                : 'shield-bug-outline';
+            const isPlanned = rec.status === 'planned';
+            const targetDate = isPlanned ? (rec.nextDueAt || rec.administeredAt) : rec.nextDueAt;
+            const dueStatus = getDueStatus(targetDate);
+
             const typeBadgeColor =
               rec.type === 'vaccine'
-                ? { bg: '#E0F2FE', text: '#0284C7', label: 'Vắc-xin' }
+                ? { bg: '#E0F2FE', text: '#0284C7', label: 'Vắc-xin', icon: 'needle' as const }
                 : rec.type === 'deworming'
-                ? { bg: '#FEF3C7', text: '#D97706', label: 'Tẩy giun' }
-                : { bg: '#DCFCE7', text: '#16A34A', label: 'Ve rận' };
+                ? { bg: '#FEF3C7', text: '#D97706', label: 'Tẩy giun', icon: 'pill' as const }
+                : { bg: '#DCFCE7', text: '#16A34A', label: 'Ve rận', icon: 'shield-bug-outline' as const };
 
             return (
               <View
                 key={rec.id}
                 style={[
                   styles.recordCard,
-                  { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.xl },
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: isPlanned ? colors.primary : colors.border,
+                    borderWidth: isPlanned ? 1.5 : 1,
+                    borderRadius: radius.xl,
+                  },
                 ]}
               >
-                {/* Card Top Row */}
+                {/* Card Top Row: Type Badge + Status Badge + Delete */}
                 <View style={styles.recordTopRow}>
-                  <View style={[styles.typeBadge, { backgroundColor: typeBadgeColor.bg }]}>
-                    <MaterialCommunityIcons name={typeIcon} size={14} color={typeBadgeColor.text} />
-                    <Text style={[typo.labelSmall, { color: typeBadgeColor.text, fontWeight: '700', marginLeft: 4 }]}>
-                      {typeBadgeColor.label}
-                    </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={[styles.typeBadge, { backgroundColor: typeBadgeColor.bg }]}>
+                      <MaterialCommunityIcons name={typeBadgeColor.icon} size={14} color={typeBadgeColor.text} />
+                      <Text style={[typo.labelSmall, { color: typeBadgeColor.text, fontWeight: '700', marginLeft: 4 }]}>
+                        {typeBadgeColor.label}
+                      </Text>
+                    </View>
+
+                    {/* Status Badge: Đã tiêm vs Kế hoạch */}
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        {
+                          backgroundColor: isPlanned ? '#EFF6FF' : '#DCFCE7',
+                        },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name={isPlanned ? 'calendar-clock' : 'check-circle'}
+                        size={12}
+                        color={isPlanned ? '#2563EB' : '#16A34A'}
+                      />
+                      <Text
+                        style={[
+                          typo.labelSmall,
+                          {
+                            color: isPlanned ? '#2563EB' : '#16A34A',
+                            fontWeight: '700',
+                            marginLeft: 3,
+                          },
+                        ]}
+                      >
+                        {isPlanned ? 'Chờ tiêm' : 'Đã tiêm'}
+                        {rec.doseNumber ? ` (Mũi ${rec.doseNumber})` : ''}
+                      </Text>
+                    </View>
                   </View>
 
                   <Pressable
@@ -339,25 +626,32 @@ export default function VaccinationScreen() {
                   </Pressable>
                 </View>
 
-                {/* Vaccine Name */}
-                <Text style={[typo.titleLarge, { color: colors.text, marginTop: 6 }]}>
+                {/* Name */}
+                <Text style={[typo.titleLarge, { color: colors.text, marginTop: 8 }]}>
                   {rec.name}
                 </Text>
 
-                {/* Administered Date */}
+                {/* Date Row */}
                 <View style={[styles.infoRow, { marginTop: 6 }]}>
-                  <MaterialCommunityIcons name="calendar-check-outline" size={16} color={colors.textSecondary} />
+                  <MaterialCommunityIcons
+                    name={isPlanned ? 'calendar-clock-outline' : 'calendar-check-outline'}
+                    size={16}
+                    color={isPlanned ? colors.primary : colors.textSecondary}
+                  />
                   <Text style={[typo.bodySmall, { color: colors.textSecondary, marginLeft: 6 }]}>
-                    Đã tiêm ngày: <Text style={{ color: colors.text, fontWeight: '600' }}>{rec.administeredAt}</Text>
+                    {isPlanned ? 'Ngày hẹn dự kiến:' : 'Ngày đã tiêm:'}{' '}
+                    <Text style={{ color: colors.text, fontWeight: '700' }}>
+                      {isPlanned ? targetDate : rec.administeredAt}
+                    </Text>
                   </Text>
                 </View>
 
-                {/* Clinic info */}
+                {/* Clinic */}
                 {rec.vetClinic && (
                   <View style={[styles.infoRow, { marginTop: 4 }]}>
                     <MaterialCommunityIcons name="hospital-box-outline" size={16} color={colors.textSecondary} />
                     <Text style={[typo.bodySmall, { color: colors.textSecondary, marginLeft: 6 }]}>
-                      Tại: {rec.vetClinic}
+                      Phòng khám: {rec.vetClinic}
                     </Text>
                   </View>
                 )}
@@ -372,13 +666,41 @@ export default function VaccinationScreen() {
                   </View>
                 )}
 
-                {/* Due Date Status Banner */}
+                {/* Due Banner for Next Due Date or Planned Date */}
                 {dueStatus && (
                   <View style={[styles.dueBanner, { backgroundColor: dueStatus.bg, borderRadius: radius.md }]}>
                     <MaterialCommunityIcons name={dueStatus.icon} size={16} color={dueStatus.color} />
                     <Text style={[typo.labelMedium, { color: dueStatus.color, fontWeight: '700', marginLeft: 6 }]}>
-                      Lịch tiêm nhắc: {dueStatus.label}
+                      {isPlanned ? dueStatus.label : `Lịch tiêm nhắc: ${dueStatus.label}`}
                     </Text>
+                  </View>
+                )}
+
+                {/* Smart Notification Indicator */}
+                {targetDate && (
+                  <View style={styles.notificationTag}>
+                    <MaterialCommunityIcons name="bell-check-outline" size={13} color={colors.primary} />
+                    <Text style={[typo.labelSmall, { color: colors.primary, marginLeft: 4 }]}>
+                      Đã bật nhắc lịch tự động (trước 1 ngày & trong ngày hẹn)
+                    </Text>
+                  </View>
+                )}
+
+                {/* QUICK ACTION BUTTON FOR PLANNED RECORDS */}
+                {isPlanned && (
+                  <View style={{ marginTop: 12, paddingTop: 10, borderTopColor: colors.border, borderTopWidth: 1 }}>
+                    <Pressable
+                      onPress={() => handleOpenCompleteModal(rec)}
+                      style={[
+                        styles.markCompleteBtn,
+                        { backgroundColor: colors.primary, borderRadius: radius.md },
+                      ]}
+                    >
+                      <MaterialCommunityIcons name="check-decagram" size={16} color={colors.onPrimary} />
+                      <Text style={[typo.labelMedium, { color: colors.onPrimary, fontWeight: '700', marginLeft: 6 }]}>
+                        Đã tiêm xong ➔ Đánh dấu hoàn thành
+                      </Text>
+                    </Pressable>
                   </View>
                 )}
               </View>
@@ -387,9 +709,108 @@ export default function VaccinationScreen() {
         )}
       </ScrollView>
 
-      {/* Add Modal */}
+      {/* MARK AS COMPLETED MODAL */}
+      <Modal visible={Boolean(selectedRecordToComplete)} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface, borderRadius: radius.xl }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <MaterialCommunityIcons name="check-decagram" size={24} color={colors.primary} />
+              <Text style={[typo.titleLarge, { color: colors.text, marginLeft: 8 }]}>
+                Đánh dấu đã tiêm
+              </Text>
+            </View>
+            <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
+              Cập nhật ngày tiêm thực tế và lên lịch tái chủng tiếp theo cho bé {selectedPet?.name}.
+            </Text>
+
+            <View style={{ marginTop: spacing.md }}>
+              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4 }]}>
+                Ngày thực tế đã tiêm:
+              </Text>
+              <TextInput
+                value={completeAdministeredAt}
+                onChangeText={setCompleteAdministeredAt}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textTertiary}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.border,
+                    color: colors.text,
+                    borderRadius: radius.md,
+                  },
+                ]}
+              />
+            </View>
+
+            <View style={{ marginTop: spacing.sm }}>
+              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4 }]}>
+                Hẹn lịch tiêm nhắc mũi tiếp theo:
+              </Text>
+              <TextInput
+                value={completeNextDueAt}
+                onChangeText={setCompleteNextDueAt}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.textTertiary}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.border,
+                    color: colors.text,
+                    borderRadius: radius.md,
+                  },
+                ]}
+              />
+            </View>
+
+            <View style={{ marginTop: spacing.sm }}>
+              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4 }]}>
+                Phòng khám thực hiện:
+              </Text>
+              <TextInput
+                value={completeClinic}
+                onChangeText={setCompleteClinic}
+                placeholder="Tên phòng khám thú y..."
+                placeholderTextColor={colors.textTertiary}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.border,
+                    color: colors.text,
+                    borderRadius: radius.md,
+                  },
+                ]}
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: spacing.lg }}>
+              <Pressable
+                onPress={() => setSelectedRecordToComplete(null)}
+                style={[styles.modalBtn, { borderColor: colors.border, borderWidth: 1, borderRadius: radius.md }]}
+              >
+                <Text style={[typo.labelLarge, { color: colors.textSecondary }]}>Hủy</Text>
+              </Pressable>
+
+              <View style={{ flex: 1 }}>
+                <PrimaryButton
+                  title="Xác nhận đã tiêm"
+                  onPress={handleConfirmMarkAsCompleted}
+                  loading={isLoading}
+                  disabled={isLoading}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ADD / SCHEDULE VACCINATION MODAL */}
       <AddVaccinationModal
         visible={isAddModalOpen}
+        defaultStatus={addModalDefaultStatus}
         onClose={() => {
           setIsAddModalOpen(false);
           if (selectedPet?.id) {
@@ -418,49 +839,72 @@ const styles = StyleSheet.create({
   addTopBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
     paddingVertical: 6,
+    paddingHorizontal: 12,
   },
   petPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
     paddingVertical: 6,
+    paddingHorizontal: 14,
     borderWidth: 1,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  statCard: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    borderWidth: 1.5,
+  },
+  statIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterBar: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
+    padding: 4,
+    marginBottom: 8,
   },
   filterTab: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 2,
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  categoryPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
   },
   emptyCard: {
+    padding: 30,
     alignItems: 'center',
-    padding: 32,
     borderWidth: 1,
     marginTop: 20,
   },
   emptyIconBox: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    justifyContent: 'center',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   addEmptyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginTop: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
   recordCard: {
     padding: 16,
-    borderWidth: 1,
     marginBottom: 12,
   },
   recordTopRow: {
@@ -471,8 +915,15 @@ const styles = StyleSheet.create({
   typeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
     paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
     borderRadius: 6,
   },
   deleteBtn: {
@@ -485,8 +936,41 @@ const styles = StyleSheet.create({
   dueBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
     paddingVertical: 8,
-    marginTop: 12,
+    paddingHorizontal: 10,
+    marginTop: 10,
+  },
+  notificationTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  markCompleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    padding: 20,
+  },
+  input: {
+    height: 44,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    fontSize: 14,
+  },
+  modalBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

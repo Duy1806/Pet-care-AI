@@ -1,7 +1,11 @@
 /**
  * PawCare AI — Vaccination Repository Interface
  */
-import type { CreateVaccinationParams, VaccinationRecord } from '../entities/Vaccination';
+import type {
+  CreateVaccinationParams,
+  UpdateVaccinationParams,
+  VaccinationRecord,
+} from '../entities/Vaccination';
 
 export interface VaccinationRepository {
   /**
@@ -18,6 +22,11 @@ export interface VaccinationRepository {
    * Add a new vaccination/deworming record (provided by pet owner)
    */
   create(params: CreateVaccinationParams): Promise<VaccinationRecord>;
+
+  /**
+   * Update an existing vaccination record (e.g., mark as completed, change due date)
+   */
+  update(params: UpdateVaccinationParams): Promise<VaccinationRecord>;
 
   /**
    * Soft-delete a vaccination record

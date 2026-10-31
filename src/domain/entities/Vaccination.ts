@@ -3,12 +3,15 @@
  */
 
 export type VaccinationType = 'vaccine' | 'deworming' | 'flea_tick';
+export type VaccinationStatus = 'completed' | 'planned'; // Đã tiêm vs Chưa tiêm / Kế hoạch
 
 export interface VaccinationRecord {
   id: string;
   petId: string;
   type: VaccinationType;
   name: string;
+  status: VaccinationStatus; // 'completed' = Đã tiêm, 'planned' = Chưa tiêm / Kế hoạch
+  doseNumber?: number | null; // Mũi 1, Mũi 2, Mũi 3...
   administeredAt: string; // ISO date string: YYYY-MM-DD
   nextDueAt: string | null; // ISO date string: YYYY-MM-DD
   vetClinic: string | null;
@@ -21,7 +24,21 @@ export interface CreateVaccinationParams {
   petId: string;
   type: VaccinationType;
   name: string;
-  administeredAt: string;
+  status?: VaccinationStatus;
+  doseNumber?: number | null;
+  administeredAt?: string;
+  nextDueAt?: string | null;
+  vetClinic?: string | null;
+  note?: string | null;
+}
+
+export interface UpdateVaccinationParams {
+  id: string;
+  type?: VaccinationType;
+  name?: string;
+  status?: VaccinationStatus;
+  doseNumber?: number | null;
+  administeredAt?: string;
   nextDueAt?: string | null;
   vetClinic?: string | null;
   note?: string | null;
