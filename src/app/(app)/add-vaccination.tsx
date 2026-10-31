@@ -104,7 +104,7 @@ export default function AddVaccinationScreen() {
   const insets = useSafeAreaInsets();
   const searchParams = useLocalSearchParams<{ petId?: string; defaultStatus?: string }>();
 
-  const { pets, selectedPet, selectPet } = usePetStore();
+  const { pets, selectedPet, selectPet, addPet } = usePetStore();
   const { addVaccination, loadAlerts, loadVaccinations, isLoading, error, clearError } = useVaccinationStore();
 
   const initialStatus: VaccinationStatus = searchParams.defaultStatus === 'planned' ? 'planned' : 'completed';
@@ -112,6 +112,8 @@ export default function AddVaccinationScreen() {
 
   const [status, setStatus] = useState<VaccinationStatus>(initialStatus);
   const [activePetId, setActivePetId] = useState<string>(initialPetId);
+  const [newPetName, setNewPetName] = useState<string>('Bé cưng');
+  const [newPetSpecies, setNewPetSpecies] = useState<'dog' | 'cat'>('dog');
   const [type, setType] = useState<VaccinationType>('vaccine');
   const [name, setName] = useState<string>('');
   const [doseNumber, setDoseNumber] = useState<number | null>(1);
@@ -122,7 +124,7 @@ export default function AddVaccinationScreen() {
   const [note, setNote] = useState<string>('');
 
   const currentPet = pets.find((p) => p.id === activePetId) || selectedPet || pets[0];
-  const petSpeciesKey = currentPet?.species === 'cat' ? 'cat' : 'dog';
+  const petSpeciesKey = currentPet?.species === 'cat' ? 'cat' : (pets.length === 0 ? newPetSpecies : 'dog');
   const suggestions = SUGGESTIONS_BY_SPECIES[petSpeciesKey]?.[type] || SUGGESTIONS_BY_SPECIES.dog[type];
 
   const handleStatusChange = (newStatus: VaccinationStatus) => {
@@ -142,14 +144,6 @@ export default function AddVaccinationScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!activePetId) {
-      Alert.alert(
-        'Chưa có thú cưng',
-        'Vui lòng tạo hồ sơ thú cưng trước khi ghi sổ tiêm chủng.'
-      );
-      return;
-    }
-
     if (!name.trim()) {
       Alert.alert(
         'Thiếu thông tin',
@@ -160,11 +154,36 @@ export default function AddVaccinationScreen() {
 
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+    let targetPetId = activePetId;
+    let targetPetName = currentPet?.name || newPetName;
+
+    if (!targetPetId) {
+      if (pets.length > 0) {
+        targetPetId = pets[0].id;
+        targetPetName = pets[0].name;
+      } else {
+        try {
+          const createdPet = await addPet({
+            name: newPetName.trim() || 'Bé cưng',
+            species: newPetSpecies,
+            sex: 'unknown',
+            weightKg: 4.0,
+          });
+          targetPetId = createdPet.id;
+          targetPetName = createdPet.name;
+          setActivePetId(createdPet.id);
+        } catch {
+          Alert.alert('Chưa có thú cưng', 'Vui lòng nhập tên bé cưng để tạo sổ tiêm chủng.');
+          return;
+        }
+      }
+    }
+
     const isCompleted = status === 'completed';
 
     const success = await addVaccination(
       {
-        petId: activePetId,
+        petId: targetPetId,
         type,
         name: name.trim(),
         status,
@@ -174,23 +193,28 @@ export default function AddVaccinationScreen() {
         vetClinic: vetClinic.trim() || null,
         note: note.trim() || null,
       },
-      currentPet?.name
+      targetPetName
     );
 
     if (success) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       void loadAlerts(pets);
-      if (activePetId) {
-        void loadVaccinations(activePetId);
+      if (targetPetId) {
+        void loadVaccinations(targetPetId);
       }
       Alert.alert(
         'Thành công',
         isCompleted
-          ? `Đã lưu mũi tiêm "${name.trim()}" vào sổ sức khỏe của bé ${currentPet?.name || ''}!`
-          : `Đã lên lịch hẹn tiêm "${name.trim()}" vào ngày ${scheduledDate.trim()} cho bé ${currentPet?.name || ''}. Hệ thống sẽ nhắc lịch trước 1 ngày và trong ngày tiêm!`,
+          ? `Đã lưu mũi tiêm "${name.trim()}" vào sổ sức khỏe của bé ${targetPetName}!`
+          : `Đã lên lịch hẹn tiêm "${name.trim()}" vào ngày ${scheduledDate.trim()} cho bé ${targetPetName}. Hệ thống sẽ gửi thông báo nhắc lịch trước 1 ngày và trong ngày tiêm!`,
         [
           {
-            text: 'OK',
+            text: 'Xem sổ tiêm',
+            onPress: () => router.push('/(app)/vaccinations' as any),
+          },
+          {
+            text: 'Đóng',
+            style: 'cancel',
             onPress: () => router.back(),
           },
         ]
@@ -226,7 +250,7 @@ export default function AddVaccinationScreen() {
             <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
           </Pressable>
 
-          <View style={{ flex: 1, marginLeft: spacing.sm }}>
+          <View style={{ flex: 1, marginLeft: spacing.sm, marginRight: spacing.xs }}>
             <Text style={[typo.headlineMedium, { color: colors.text }]}>
               {status === 'completed' ? 'Ghi nhận mũi đã tiêm' : 'Lên lịch hẹn tiêm phòng'}
             </Text>
@@ -236,6 +260,26 @@ export default function AddVaccinationScreen() {
                 : 'Tự động gửi thông báo nhắc trước 1 ngày & trong ngày'}
             </Text>
           </View>
+
+          <Pressable
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/(app)/vaccinations' as any);
+            }}
+            style={[
+              styles.listTopBtn,
+              {
+                backgroundColor: colors.surfaceElevated,
+                borderColor: colors.border,
+                borderRadius: radius.full,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons name="clipboard-list-outline" size={16} color={colors.primary} />
+            <Text style={[typo.labelSmall, { color: colors.primary, marginLeft: 3, fontWeight: '700' }]}>
+              Xem sổ
+            </Text>
+          </Pressable>
         </View>
       </View>
 
@@ -372,9 +416,55 @@ export default function AddVaccinationScreen() {
                 })}
               </ScrollView>
             ) : (
-              <Text style={[typo.bodySmall, { color: colors.error }]}>
-                Chưa có thú cưng nào. Vui lòng tạo hồ sơ thú cưng trước.
-              </Text>
+              <View style={{ gap: 8 }}>
+                <TextInput
+                  value={newPetName}
+                  onChangeText={setNewPetName}
+                  placeholder="Nhập tên bé cưng của bạn..."
+                  placeholderTextColor={colors.textTertiary}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: colors.surfaceElevated,
+                      borderColor: colors.border,
+                      color: colors.text,
+                      borderRadius: radius.md,
+                    },
+                  ]}
+                />
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Pressable
+                    onPress={() => setNewPetSpecies('dog')}
+                    style={[
+                      styles.sugChip,
+                      {
+                        backgroundColor: newPetSpecies === 'dog' ? colors.primaryContainer : colors.surfaceElevated,
+                        borderColor: newPetSpecies === 'dog' ? colors.primary : colors.border,
+                        borderRadius: radius.full,
+                      },
+                    ]}
+                  >
+                    <Text style={[typo.labelSmall, { color: newPetSpecies === 'dog' ? colors.primary : colors.text, fontWeight: '700' }]}>
+                      🐕 Thú cưng là Chó
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setNewPetSpecies('cat')}
+                    style={[
+                      styles.sugChip,
+                      {
+                        backgroundColor: newPetSpecies === 'cat' ? colors.primaryContainer : colors.surfaceElevated,
+                        borderColor: newPetSpecies === 'cat' ? colors.primary : colors.border,
+                        borderRadius: radius.full,
+                      },
+                    ]}
+                  >
+                    <Text style={[typo.labelSmall, { color: newPetSpecies === 'cat' ? colors.primary : colors.text, fontWeight: '700' }]}>
+                      🐈 Thú cưng là Mèo
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
             )}
           </View>
 
@@ -760,4 +850,12 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
   },
+  listTopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+  },
 });
+

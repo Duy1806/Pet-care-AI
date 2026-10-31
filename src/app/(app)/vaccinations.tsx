@@ -10,7 +10,6 @@
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -487,14 +486,7 @@ export default function VaccinationScreen() {
         </ScrollView>
 
         {/* RECORDS LIST */}
-        {isLoading && filteredRecords.length === 0 ? (
-          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-            <ActivityIndicator color={colors.primary} size="large" />
-            <Text style={[typo.bodySmall, { color: colors.textSecondary, marginTop: 8 }]}>
-              Đang đồng bộ sổ tiêm chủng...
-            </Text>
-          </View>
-        ) : filteredRecords.length === 0 ? (
+        {filteredRecords.length === 0 ? (
           <View
             style={[
               styles.emptyCard,

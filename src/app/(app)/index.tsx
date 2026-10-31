@@ -490,7 +490,7 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push('/(app)/vaccinations' as any);
+                router.push('/(app)/add-vaccination' as any);
               }}
               style={[
                 styles.actionCard,
