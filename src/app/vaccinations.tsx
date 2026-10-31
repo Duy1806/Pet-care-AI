@@ -29,6 +29,7 @@ import { usePetStore } from '@/presentation/stores/usePetStore';
 import { useVaccinationStore } from '@/presentation/stores/useVaccinationStore';
 import { PrimaryButton } from '@/presentation/components/PrimaryButton';
 import type { VaccinationRecord, VaccinationType } from '@/domain/entities/Vaccination';
+import type { Pet } from '@/domain/entities/Pet';
 
 type StatusFilter = 'all' | 'planned' | 'completed' | 'overdue';
 
@@ -216,7 +217,7 @@ export default function VaccinationScreen() {
 
   // Filter logic
   const filteredRecords = useMemo(() => {
-    return records.filter((r) => {
+    return records.filter((r: VaccinationRecord) => {
       // 1. Type filter
       if (typeFilter !== 'all' && r.type !== typeFilter) return false;
 
@@ -292,7 +293,7 @@ export default function VaccinationScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 8, marginTop: spacing.md, paddingBottom: 4 }}
           >
-            {pets.map((p) => {
+            {pets.map((p: Pet) => {
               const isSelected = effectivePet?.id === p.id;
               return (
                 <Pressable
@@ -556,7 +557,7 @@ export default function VaccinationScreen() {
             </View>
           </View>
         ) : (
-          filteredRecords.map((rec) => {
+          filteredRecords.map((rec: VaccinationRecord) => {
             const isPlanned = rec.status === 'planned';
             const targetDate = isPlanned ? (rec.nextDueAt || rec.administeredAt) : rec.nextDueAt;
             const dueStatus = getDueStatus(targetDate);

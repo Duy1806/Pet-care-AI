@@ -30,6 +30,7 @@ import { PrimaryButton } from '@/presentation/components/PrimaryButton';
 import { usePetStore } from '@/presentation/stores/usePetStore';
 import { useVaccinationStore } from '@/presentation/stores/useVaccinationStore';
 import type { VaccinationStatus, VaccinationType } from '@/domain/entities/Vaccination';
+import type { Pet } from '@/domain/entities/Pet';
 
 const TYPE_OPTIONS: { type: VaccinationType; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }[] = [
   { type: 'vaccine', label: 'Vắc-xin', icon: 'needle' },
@@ -123,7 +124,7 @@ export default function AddVaccinationScreen() {
   const [vetClinic, setVetClinic] = useState<string>('');
   const [note, setNote] = useState<string>('');
 
-  const currentPet = pets.find((p) => p.id === activePetId) || selectedPet || pets[0];
+  const currentPet = pets.find((p: Pet) => p.id === activePetId) || selectedPet || pets[0];
   const petSpeciesKey = currentPet?.species === 'cat' ? 'cat' : (pets.length === 0 ? newPetSpecies : 'dog');
   const suggestions = SUGGESTIONS_BY_SPECIES[petSpeciesKey]?.[type] || SUGGESTIONS_BY_SPECIES.dog[type];
 
@@ -375,7 +376,7 @@ export default function AddVaccinationScreen() {
             </Text>
             {pets.length > 0 ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {pets.map((p) => {
+                {pets.map((p: Pet) => {
                   const isSelected = p.id === activePetId;
                   return (
                     <Pressable
