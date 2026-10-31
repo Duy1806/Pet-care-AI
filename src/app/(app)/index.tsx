@@ -13,6 +13,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -270,14 +271,21 @@ export default function HomeScreen() {
                       <View
                         style={[
                           styles.petAvatar,
-                          { backgroundColor: pet.species === 'dog' ? '#FFE0B2' : '#E1BEE7' },
+                          {
+                            backgroundColor: pet.species === 'dog' ? '#FFE0B2' : '#E1BEE7',
+                            overflow: 'hidden',
+                          },
                         ]}
                       >
-                        <MaterialCommunityIcons
-                          name={pet.species === 'dog' ? 'dog' : 'cat'}
-                          size={28}
-                          color="#4E342E"
-                        />
+                        {pet.photoUrl ? (
+                          <Image source={{ uri: pet.photoUrl }} style={{ width: '100%', height: '100%', borderRadius: 24 }} resizeMode="cover" />
+                        ) : (
+                          <MaterialCommunityIcons
+                            name={pet.species === 'dog' ? 'dog' : 'cat'}
+                            size={28}
+                            color="#4E342E"
+                          />
+                        )}
                       </View>
                       {isSelected && (
                         <View
@@ -406,31 +414,45 @@ export default function HomeScreen() {
                 />
               </View>
 
-              <View style={{ flex: 1, marginLeft: spacing.sm }}>
+              <View style={{ flex: 1, marginLeft: spacing.sm, justifyContent: 'center' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text
-                    style={[
-                      typo.labelLarge,
-                      {
-                        color: alerts[0].status === 'overdue' ? '#C62828' : '#D97706',
-                        fontWeight: '700',
-                      },
-                    ]}
-                  >
-                    {alerts[0].status === 'overdue'
-                      ? '⚠️ Quá hạn tiêm phòng!'
-                      : alerts[0].status === 'today'
-                      ? '🔔 Lịch tiêm hôm nay!'
-                      : '⏰ Nhắc lịch tiêm sắp tới'}
-                  </Text>
-                  <Text style={[typo.labelSmall, { color: colors.textSecondary }]}>
-                    {alerts.length > 1 ? `+${alerts.length - 1} lịch khác` : ''}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <MaterialCommunityIcons
+                      name={alerts[0].status === 'overdue' ? 'alert-circle' : 'bell-ring'}
+                      size={16}
+                      color={alerts[0].status === 'overdue' ? '#C62828' : '#D97706'}
+                      style={{ marginRight: 5 }}
+                    />
+                    <Text
+                      style={[
+                        typo.labelLarge,
+                        {
+                          color: alerts[0].status === 'overdue' ? '#C62828' : '#B45309',
+                          fontWeight: '700',
+                          includeFontPadding: false,
+                        },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {alerts[0].status === 'overdue'
+                        ? 'Quá hạn tiêm phòng!'
+                        : alerts[0].status === 'today'
+                        ? 'Lịch tiêm hôm nay!'
+                        : 'Nhắc lịch tiêm sắp tới'}
+                    </Text>
+                  </View>
+                  {alerts.length > 1 && (
+                    <Text style={[typo.labelSmall, { color: colors.textSecondary, marginLeft: 6 }]}>
+                      +{alerts.length - 1} lịch khác
+                    </Text>
+                  )}
                 </View>
 
-                <Text style={[typo.bodySmall, { color: colors.text, marginTop: 2 }]} numberOfLines={2}>
-                  Bé <Text style={{ fontWeight: '700' }}>{alerts[0].petName}</Text> có lịch tiêm{' '}
-                  <Text style={{ fontWeight: '600' }}>&ldquo;{alerts[0].record.name}&rdquo;</Text> ({alerts[0].record.nextDueAt}).
+                <Text
+                  style={[typo.bodySmall, { color: colors.text, marginTop: 3, includeFontPadding: false }]}
+                  numberOfLines={1}
+                >
+                  Bé <Text style={{ fontWeight: '700' }}>{alerts[0].petName}</Text>: {alerts[0].record.name} ({alerts[0].record.nextDueAt})
                 </Text>
               </View>
 
@@ -517,7 +539,10 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push('/add-vaccination' as any);
+                router.push({
+                  pathname: '/vaccinations',
+                  params: selectedPet?.id ? { petId: selectedPet.id } : undefined,
+                } as any);
               }}
               style={[
                 styles.actionCard,

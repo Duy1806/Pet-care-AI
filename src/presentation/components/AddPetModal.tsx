@@ -5,7 +5,9 @@
  */
 import React, { useState } from 'react';
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -81,7 +83,10 @@ export function AddPetModal({ visible, onClose, onSuccess }: AddPetModalProps) {
       transparent
       onRequestClose={onClose}
     >
-      <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
+      >
         <View
           style={[
             styles.sheet,
@@ -89,14 +94,16 @@ export function AddPetModal({ visible, onClose, onSuccess }: AddPetModalProps) {
               backgroundColor: colors.surface,
               borderTopLeftRadius: radius.xxl,
               borderTopRightRadius: radius.xxl,
-              padding: spacing.lg,
+              paddingHorizontal: spacing.lg,
+              paddingTop: spacing.lg,
+              paddingBottom: spacing.md,
             },
           ]}
         >
           {/* Header */}
           <View style={styles.headerRow}>
             <View>
-              <Text style={[typo.titleLarge, { color: colors.text }]}>
+              <Text style={[typo.titleLarge, { color: colors.text, fontWeight: '700' }]}>
                 Thêm thú cưng mới
               </Text>
               <Text style={[typo.bodySmall, { color: colors.textSecondary, marginTop: 2 }]}>
@@ -115,7 +122,7 @@ export function AddPetModal({ visible, onClose, onSuccess }: AddPetModalProps) {
           <ScrollView
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingVertical: spacing.md }}
+            contentContainerStyle={{ paddingVertical: spacing.sm, paddingBottom: 60 }}
           >
             {/* Error Message */}
             {(validationError || error) && (
@@ -307,7 +314,7 @@ export function AddPetModal({ visible, onClose, onSuccess }: AddPetModalProps) {
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

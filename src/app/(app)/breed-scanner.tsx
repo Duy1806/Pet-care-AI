@@ -735,10 +735,13 @@ export default function BreedScannerScreen() {
               ]}
             >
               <View style={styles.statCol}>
-                <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
+                <Text style={[typo.labelSmall, { color: colors.textSecondary, textAlign: 'center' }]}>
                   Cân nặng chuẩn
                 </Text>
-                <Text style={[typo.titleMedium, { color: colors.text, marginTop: 2 }]}>
+                <Text
+                  style={[typo.titleSmall, { color: colors.text, marginTop: 4, fontWeight: '700', textAlign: 'center' }]}
+                  numberOfLines={2}
+                >
                   {selectedResult.standardWeight}
                 </Text>
               </View>
@@ -746,10 +749,13 @@ export default function BreedScannerScreen() {
               <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
 
               <View style={styles.statCol}>
-                <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
+                <Text style={[typo.labelSmall, { color: colors.textSecondary, textAlign: 'center' }]}>
                   Tuổi thọ trung bình
                 </Text>
-                <Text style={[typo.titleMedium, { color: colors.text, marginTop: 2 }]}>
+                <Text
+                  style={[typo.titleSmall, { color: colors.text, marginTop: 4, fontWeight: '700', textAlign: 'center' }]}
+                  numberOfLines={2}
+                >
                   {selectedResult.lifespan}
                 </Text>
               </View>
@@ -788,7 +794,15 @@ export default function BreedScannerScreen() {
             <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
               <PrimaryButton
                 title="🥗 Xem chế độ dinh dưỡng cho giống này"
-                onPress={() => router.push('/(app)/nutrition' as any)}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(app)/nutrition',
+                    params: {
+                      breed: selectedResult.breedEnglish || selectedResult.breedName,
+                      species: selectedResult.species === 'cat' ? 'cat' : 'dog',
+                    },
+                  } as any)
+                }
               />
             </View>
           </View>
@@ -978,14 +992,18 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
+    width: '100%',
   },
   statCol: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
   },
   statDivider: {
     width: 1,
-    height: 32,
+    height: 36,
   },
   infoBlock: {
     flexDirection: 'row',

@@ -11,6 +11,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -209,14 +210,21 @@ export default function ProfileScreen() {
                   <View
                     style={[
                       styles.petIconBox,
-                      { backgroundColor: pet.species === 'dog' ? '#FFE0B2' : '#E1BEE7' },
+                      {
+                        backgroundColor: pet.species === 'dog' ? '#FFE0B2' : '#E1BEE7',
+                        overflow: 'hidden',
+                      },
                     ]}
                   >
-                    <MaterialCommunityIcons
-                      name={pet.species === 'dog' ? 'dog' : 'cat'}
-                      size={24}
-                      color="#4E342E"
-                    />
+                    {pet.photoUrl ? (
+                      <Image source={{ uri: pet.photoUrl }} style={{ width: 44, height: 44, borderRadius: 12 }} resizeMode="cover" />
+                    ) : (
+                      <MaterialCommunityIcons
+                        name={pet.species === 'dog' ? 'dog' : 'cat'}
+                        size={24}
+                        color="#4E342E"
+                      />
+                    )}
                   </View>
                   <View style={{ marginLeft: spacing.sm, flex: 1 }}>
                     <Text style={[typo.titleMedium, { color: colors.text }]}>

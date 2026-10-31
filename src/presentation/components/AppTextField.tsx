@@ -145,6 +145,7 @@ export function AppTextField({
           <View style={styles.inputWrapper}>
             {/* Floating label */}
             <Text
+              pointerEvents="none"
               style={[
                 styles.label,
                 isActive ? typo.caption : typo.bodyMedium,
@@ -171,6 +172,7 @@ export function AppTextField({
               secureTextEntry={secureTextEntry}
               keyboardType={keyboardType}
               autoCapitalize={autoCapitalize}
+              placeholder={isActive ? rest.placeholder : undefined}
               style={[
                 typo.bodyLarge,
                 styles.input,

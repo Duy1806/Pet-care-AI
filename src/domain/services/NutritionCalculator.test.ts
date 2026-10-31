@@ -118,6 +118,56 @@ describe('NutritionCalculator Service', () => {
       expect(result.recommendedWaterMlPerDay).toBeGreaterThan(500);
       expect(result.activityFactor).toBe(1.6);
     });
+
+    it('áp dụng hệ số giảm calo và khuyến nghị chuyên sâu cho chó Beagle (dễ béo phì)', () => {
+      const result = calculateNutrition({
+        species: 'dog',
+        weightKg: 10,
+        lifeStage: 'adult',
+        isNeutered: true,
+        activityLevel: 'moderate',
+        breedKey: 'beagle',
+      });
+
+      // Base dog adult neutered = 1.6, Beagle modifier = 0.88 -> 1.6 * 0.88 = 1.41
+      expect(result.breedProfile).toBeDefined();
+      expect(result.breedProfile?.nameVi).toContain('Beagle');
+      expect(result.breedModifier).toBe(0.88);
+      expect(result.activityFactor).toBeCloseTo(1.41, 2);
+      expect(result.breedProfile?.healthRisks).toContain('Béo phì mất kiểm soát');
+      expect(result.optimalDiet.wetPercentage).toBe(30);
+    });
+
+    it('áp dụng hệ số tăng calo cho mèo Sphynx không lông để bù thân nhiệt', () => {
+      const result = calculateNutrition({
+        species: 'cat',
+        weightKg: 4,
+        lifeStage: 'adult',
+        isNeutered: true,
+        activityLevel: 'moderate',
+        breedKey: 'sphynx',
+      });
+
+      // Base cat adult neutered = 1.2, Sphynx modifier = 1.25 -> 1.2 * 1.25 = 1.50
+      expect(result.breedProfile).toBeDefined();
+      expect(result.breedModifier).toBe(1.25);
+      expect(result.activityFactor).toBe(1.5);
+      expect(result.merKcal).toBeGreaterThan(Math.round(result.rerKcal * 1.2));
+    });
+
+    it('khuyến nghị 3 bữa/ngày cho giống chó Toy (Chihuahua) để ngừa hạ đường huyết', () => {
+      const result = calculateNutrition({
+        species: 'dog',
+        weightKg: 2.5,
+        lifeStage: 'adult',
+        isNeutered: true,
+        activityLevel: 'moderate',
+        breedKey: 'chihuahua',
+      });
+
+      expect(result.recommendedMealsPerDay).toBe(3);
+      expect(result.breedProfile?.kibbleSize).toBe('extra_small');
+    });
   });
 });
 

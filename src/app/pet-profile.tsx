@@ -14,7 +14,9 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -29,6 +31,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 
 import { useAppTheme } from '@/presentation/theme';
 import { usePetStore } from '@/presentation/stores/usePetStore';
@@ -77,6 +80,7 @@ export default function PetProfileScreen() {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   // Edit form state
   const [editName, setEditName] = useState('');
@@ -88,6 +92,7 @@ export default function PetProfileScreen() {
   const [editNeutered, setEditNeutered] = useState(true);
   const [editActivity, setEditActivity] = useState<'low' | 'moderate' | 'high'>('moderate');
   const [editNotes, setEditNotes] = useState('');
+  const [editPhotoUrl, setEditPhotoUrl] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
 
   const currentPet: Pet | null = useMemo(() => {
@@ -120,11 +125,94 @@ export default function PetProfileScreen() {
         lifeStage: 'adult',
         isNeutered: Boolean(currentPet.isNeutered),
         activityLevel: (currentPet.activityLevel as any) || 'moderate',
+        breedKey: currentPet.breedId,
+        breedName: currentPet.breedName || currentPet.breed,
       });
     } catch {
       return null;
     }
   }, [currentPet]);
+
+  // Handle pick and upload avatar
+  const handlePickAvatar = () => {
+    if (!currentPet) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    Alert.alert(
+      'Cập nhật ảnh thú cưng',
+      `Thay đổi ảnh đại diện cho bé "${currentPet.name}":`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: '📸 Chụp ảnh mới',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Cần quyền truy cập', 'Vui lòng cho phép ứng dụng truy cập máy ảnh trong cài đặt thiết bị.');
+                return;
+              }
+              const res = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.6,
+                base64: true,
+              });
+              if (!res.canceled && res.assets && res.assets[0]) {
+                await applyAvatar(res.assets[0]);
+              }
+            } catch (err: any) {
+              Alert.alert('Lỗi chụp ảnh', err?.message || 'Không thể chụp ảnh lúc này.');
+            }
+          },
+        },
+        {
+          text: '🖼️ Chọn từ thư viện',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Cần quyền truy cập', 'Vui lòng cho phép ứng dụng truy cập thư viện ảnh trong cài đặt.');
+                return;
+              }
+              const res = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.6,
+                base64: true,
+              });
+              if (!res.canceled && res.assets && res.assets[0]) {
+                await applyAvatar(res.assets[0]);
+              }
+            } catch (err: any) {
+              Alert.alert('Lỗi chọn ảnh', err?.message || 'Không thể chọn ảnh từ thư viện.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const applyAvatar = async (asset: ImagePicker.ImagePickerAsset) => {
+    if (!currentPet) return;
+    setIsUploadingAvatar(true);
+    try {
+      let finalPhotoUrl = asset.uri;
+      if (asset.base64) {
+        finalPhotoUrl = `data:image/jpeg;base64,${asset.base64}`;
+      }
+      await updatePet(currentPet.id, { photoUrl: finalPhotoUrl });
+      setEditPhotoUrl(finalPhotoUrl);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Thành công', 'Đã cập nhật ảnh đại diện mới cho bé!');
+    } catch (e: any) {
+      Alert.alert('Không thể lưu ảnh', e?.message || 'Có lỗi xảy ra khi lưu ảnh.');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
 
   // Handle opening edit modal
   const handleOpenEdit = () => {
@@ -138,6 +226,7 @@ export default function PetProfileScreen() {
     setEditNeutered(Boolean(currentPet.isNeutered));
     setEditActivity(currentPet.activityLevel || 'moderate');
     setEditNotes(currentPet.notes || '');
+    setEditPhotoUrl(currentPet.photoUrl || null);
     setEditError(null);
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsEditModalOpen(true);
@@ -170,6 +259,7 @@ export default function PetProfileScreen() {
         isNeutered: editNeutered,
         activityLevel: editActivity,
         notes: editNotes.trim() || null,
+        photoUrl: editPhotoUrl,
       });
       setIsEditModalOpen(false);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -385,19 +475,48 @@ export default function PetProfileScreen() {
               ]}
             >
               <View style={styles.heroRow}>
-                {/* Big Avatar */}
-                <View style={[styles.heroAvatar, { backgroundColor: speciesBg, borderColor: speciesColor + '30' }]}>
-                  <MaterialCommunityIcons
-                    name={currentPet.species === 'dog' ? 'dog' : 'cat'}
-                    size={46}
-                    color={speciesColor}
-                  />
+                {/* Big Avatar with Upload Support */}
+                <Pressable
+                  onPress={handlePickAvatar}
+                  disabled={isUploadingAvatar}
+                  style={[
+                    styles.heroAvatar,
+                    {
+                      backgroundColor: speciesBg,
+                      borderColor: speciesColor + '40',
+                    },
+                  ]}
+                >
+                  {currentPet.photoUrl ? (
+                    <Image
+                      source={{ uri: currentPet.photoUrl }}
+                      style={styles.heroAvatarImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <MaterialCommunityIcons
+                      name={currentPet.species === 'dog' ? 'dog' : 'cat'}
+                      size={46}
+                      color={speciesColor}
+                    />
+                  )}
+
+                  {isUploadingAvatar ? (
+                    <View style={styles.avatarLoadingOverlay}>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    </View>
+                  ) : (
+                    <View style={styles.cameraIconBadge}>
+                      <MaterialCommunityIcons name="camera-plus" size={13} color="#FFFFFF" />
+                    </View>
+                  )}
+
                   <View style={[styles.avatarSpeciesBadge, { backgroundColor: speciesColor }]}>
                     <Text style={styles.avatarSpeciesText}>
                       {currentPet.species === 'dog' ? 'CHÓ' : 'MÈO'}
                     </Text>
                   </View>
-                </View>
+                </Pressable>
 
                 {/* Name & Quick Badges */}
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
@@ -663,7 +782,13 @@ export default function PetProfileScreen() {
                 <Pressable
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push('/(app)/nutrition' as any);
+                    router.push({
+                      pathname: '/(app)/nutrition',
+                      params: {
+                        breed: currentPet.breedName || currentPet.breed,
+                        species: currentPet.species === 'cat' ? 'cat' : 'dog',
+                      },
+                    } as any);
                   }}
                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: spacing.md }}
                 >
@@ -824,6 +949,41 @@ export default function PetProfileScreen() {
                 </Text>
               </View>
             )}
+
+            {/* Avatar Picker in Edit Modal */}
+            <View style={{ alignItems: 'center', marginBottom: spacing.md, marginTop: spacing.xs }}>
+              <Pressable
+                onPress={handlePickAvatar}
+                style={[
+                  styles.heroAvatar,
+                  {
+                    width: 76,
+                    height: 76,
+                    borderRadius: 38,
+                    backgroundColor: editSpecies === 'dog' ? '#FFEDD5' : '#F3E8FF',
+                    borderColor: colors.primary,
+                  },
+                ]}
+              >
+                {editPhotoUrl ? (
+                  <Image source={{ uri: editPhotoUrl }} style={styles.heroAvatarImage} resizeMode="cover" />
+                ) : (
+                  <MaterialCommunityIcons
+                    name={editSpecies === 'dog' ? 'dog' : 'cat'}
+                    size={38}
+                    color={editSpecies === 'dog' ? '#EA580C' : '#9333EA'}
+                  />
+                )}
+                <View style={styles.cameraIconBadge}>
+                  <MaterialCommunityIcons name="camera" size={12} color="#FFFFFF" />
+                </View>
+              </Pressable>
+              <Pressable onPress={handlePickAvatar} style={{ marginTop: 6 }}>
+                <Text style={[typo.labelMedium, { color: colors.primary, fontWeight: '700' }]}>
+                  {editPhotoUrl ? 'Đổi ảnh đại diện' : '+ Thêm ảnh đại diện'}
+                </Text>
+              </Pressable>
+            </View>
 
             {/* Species Selector */}
             <Text style={[typo.labelLarge, { color: colors.text, marginTop: spacing.xs, marginBottom: spacing.xs }]}>
@@ -1162,6 +1322,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    overflow: 'hidden',
+  },
+  heroAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 41,
+  },
+  cameraIconBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  avatarLoadingOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 41,
   },
   avatarSpeciesBadge: {
     position: 'absolute',
