@@ -228,6 +228,10 @@ export default function HomeScreen() {
                     onPress={() => {
                       void Haptics.selectionAsync();
                       selectPet(pet);
+                      router.push({
+                        pathname: '/pet-profile',
+                        params: { petId: pet.id },
+                      } as any);
                     }}
                     style={[
                       styles.petCard,
@@ -521,7 +525,10 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push('/(app)/profile' as any);
+                router.push({
+                  pathname: '/pet-profile',
+                  params: selectedPet?.id ? { petId: selectedPet.id } : undefined,
+                } as any);
               }}
               style={[
                 styles.actionCard,

@@ -184,8 +184,15 @@ export default function ProfileScreen() {
           <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.xl, marginTop: spacing.xs }]}>
             {pets.length > 0 ? (
               pets.map((pet, idx) => (
-                <View
+                <Pressable
                   key={pet.id}
+                  onPress={() => {
+                    void Haptics.selectionAsync();
+                    router.push({
+                      pathname: '/pet-profile',
+                      params: { petId: pet.id },
+                    } as any);
+                  }}
                   style={[
                     styles.petRow,
                     {
@@ -215,14 +222,20 @@ export default function ProfileScreen() {
                       {pet.breedName || (pet.species === 'dog' ? 'Chó' : 'Mèo')} • {pet.weightKg} kg
                     </Text>
                   </View>
-                  <Pressable
-                    onPress={() => handleDeletePet(pet.id, pet.name)}
-                    hitSlop={8}
-                    style={{ padding: 4 }}
-                  >
-                    <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.error} />
-                  </Pressable>
-                </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textTertiary} />
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDeletePet(pet.id, pet.name);
+                      }}
+                      hitSlop={8}
+                      style={{ padding: 4 }}
+                    >
+                      <MaterialCommunityIcons name="trash-can-outline" size={20} color={colors.error} />
+                    </Pressable>
+                  </View>
+                </Pressable>
               ))
             ) : (
               <View style={{ padding: spacing.lg, alignItems: 'center' }}>

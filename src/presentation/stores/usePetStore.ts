@@ -17,6 +17,7 @@ interface PetState {
   loadPets: () => Promise<void>;
   selectPet: (pet: Pet) => void;
   addPet: (input: CreatePetInput) => Promise<Pet>;
+  updatePet: (id: string, input: Partial<CreatePetInput>) => Promise<Pet>;
   deletePet: (id: string) => Promise<void>;
   clearError: () => void;
 }
@@ -59,6 +60,24 @@ export const usePetStore = create<PetState>((set, get) => ({
       return created;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Không thể thêm thú cưng';
+      set({ isLoading: false, error: msg });
+      throw e;
+    }
+  },
+
+  updatePet: async (id: string, input: Partial<CreatePetInput>) => {
+    try {
+      set({ isLoading: true, error: null });
+      const updated = await petRepository.update(id, input);
+      const updatedList = get().pets.map((p) => (p.id === id ? updated : p));
+      set({
+        pets: updatedList,
+        selectedPet: get().selectedPet?.id === id ? updated : get().selectedPet,
+        isLoading: false,
+      });
+      return updated;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Không thể cập nhật thú cưng';
       set({ isLoading: false, error: msg });
       throw e;
     }
