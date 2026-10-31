@@ -15,7 +15,6 @@ import {
   Alert,
   Image,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -150,7 +149,6 @@ export default function BreedScannerScreen() {
     const target = urlToCheck || serverUrl;
     const baseUrl = target.replace(/\/pet\/(predict|predict-base64)\/?$/, '').replace(/\/$/, '');
     const healthUrl = `${baseUrl}/health`;
-    setServerStatus('checking');
 
     try {
       const controller = new AbortController();
@@ -162,12 +160,8 @@ export default function BreedScannerScreen() {
       });
       clearTimeout(timeoutId);
 
-      if (res.ok) {
-        setServerStatus('connected');
-        return true;
-      }
-      setServerStatus('disconnected');
-      return false;
+      setServerStatus(res.ok ? 'connected' : 'disconnected');
+      return res.ok;
     } catch {
       setServerStatus('disconnected');
       return false;
@@ -176,7 +170,10 @@ export default function BreedScannerScreen() {
 
   useEffect(() => {
     void loadBreeds();
-    void checkServerStatus();
+    const timer = setTimeout(() => {
+      void checkServerStatus();
+    }, 100);
+    return () => clearTimeout(timer);
   }, [loadBreeds, checkServerStatus]);
 
   /**

@@ -112,6 +112,14 @@ export default function AppLayout() {
           href: null,
         }}
       />
+
+      {/* Sổ tiêm chủng chuyên biệt */}
+      <Tabs.Screen
+        name="vaccinations"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

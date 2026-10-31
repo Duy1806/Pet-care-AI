@@ -275,6 +275,21 @@ export default function ProfileScreen() {
               </View>
             </View>
 
+            {/* Setting 2.5: Sổ tiêm chủng */}
+            <Pressable
+              onPress={() => router.push('/(app)/vaccinations' as any)}
+              style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 1, padding: spacing.md }]}
+            >
+              <View style={styles.settingLeft}>
+                <MaterialCommunityIcons name="needle" size={22} color="#0284C7" />
+                <View style={{ marginLeft: spacing.sm }}>
+                  <Text style={[typo.labelLarge, { color: colors.text }]}>Sổ tiêm chủng & Phòng bệnh</Text>
+                  <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>Lịch sử tiêm vắc-xin, tẩy giun & ve rận</Text>
+                </View>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textTertiary} />
+            </Pressable>
+
             {/* Setting 3: Dev Test Lab */}
             <Pressable
               onPress={() => router.push('/(app)/dev-test' as any)}

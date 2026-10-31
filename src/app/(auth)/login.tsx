@@ -9,6 +9,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -38,7 +39,7 @@ import { loginSchema, type LoginFormData } from '@/presentation/validation';
 export default function LoginScreen() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, isLoading, error, clearError, resendSignUpOtp } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -114,9 +115,31 @@ export default function LoginScreen() {
                   },
                 ]}
               >
-                <Text style={[typo.bodySmall, { color: colors.error }]}>
+                <Text style={[typo.bodySmall, { color: colors.error, flex: 1 }]}>
                   {error}
                 </Text>
+                {error.includes('chưa được kích hoạt') && (
+                  <Pressable
+                    onPress={async () => {
+                      const emailVal = control._formValues?.email;
+                      if (!emailVal) {
+                        Alert.alert('Nhập email', 'Vui lòng điền địa chỉ email ở ô bên dưới trước khi bấm gửi lại.');
+                        return;
+                      }
+                      useAuthStore.setState({ signUpEmail: emailVal });
+                      const ok = await resendSignUpOtp();
+                      if (ok) {
+                        Alert.alert('Đã gửi email', `Đã gửi lại email kích hoạt tới ${emailVal}. Vui lòng kiểm tra hộp thư đến hoặc mục Spam.`);
+                      }
+                    }}
+                    style={{ marginTop: 8 }}
+                    hitSlop={8}
+                  >
+                    <Text style={[typo.labelMedium, { color: colors.primary, textDecorationLine: 'underline', fontWeight: '700' }]}>
+                      👉 Bấm vào đây để gửi lại email kích hoạt
+                    </Text>
+                  </Pressable>
+                )}
               </Animated.View>
             ) : null}
 
@@ -258,8 +281,8 @@ const styles = StyleSheet.create({
     marginTop: -16,
   },
   errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
   },
   optionsRow: {
     flexDirection: 'row',

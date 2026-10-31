@@ -118,7 +118,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({
           isLoading: false,
           isVerifyingSignUp: true,
-          user: result.user,
+          user: null,
           session: null,
         });
         return 'requires_verification';

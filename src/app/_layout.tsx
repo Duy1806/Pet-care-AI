@@ -35,7 +35,7 @@ function RootNavigator() {
   const { colors } = useAppTheme();
   const segments = useSegments();
   const router = useRouter();
-  const { user, isInitialized, initialize } = useAuthStore();
+  const { user, session, isInitialized, initialize } = useAuthStore();
 
   useEffect(() => {
     void initialize();
@@ -46,13 +46,14 @@ function RootNavigator() {
     if (!isInitialized) return;
 
     const inAuthGroup = (segments[0] as string) === '(auth)';
+    const isAuthenticated = Boolean(user && session);
 
-    if (!user && !inAuthGroup) {
+    if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/welcome' as any);
-    } else if (user && inAuthGroup) {
+    } else if (isAuthenticated && inAuthGroup) {
       router.replace('/(app)' as any);
     }
-  }, [user, isInitialized, segments, router]);
+  }, [user, session, isInitialized, segments, router]);
 
   return (
     <>

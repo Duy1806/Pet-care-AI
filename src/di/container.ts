@@ -8,9 +8,11 @@ import { AuthRepositorySupabase } from '../data/repositories/AuthRepositorySupab
 import { InMemoryPetRepository } from '../data/repositories/InMemoryPetRepository';
 import { PetRepositorySupabase } from '../data/repositories/PetRepositorySupabase';
 import { BreedRepositorySupabase } from '../data/repositories/BreedRepositorySupabase';
+import { VaccinationRepositorySupabase } from '../data/repositories/VaccinationRepositorySupabase';
 import type { AuthRepository } from '../domain/repositories/AuthRepository';
 import type { PetRepository } from '../domain/repositories/PetRepository';
 import type { BreedRepository } from '../domain/repositories/BreedRepository';
+import type { VaccinationRepository } from '../domain/repositories/VaccinationRepository';
 import { ForgotPasswordUseCase } from '../domain/usecases/ForgotPasswordUseCase';
 import { GetPets } from '../domain/usecases/GetPets';
 import { LoginUseCase } from '../domain/usecases/LoginUseCase';
@@ -41,9 +43,14 @@ function createBreedRepository(): BreedRepository {
   return new BreedRepositorySupabase();
 }
 
+function createVaccinationRepository(): VaccinationRepository {
+  return new VaccinationRepositorySupabase();
+}
+
 const authRepository = createAuthRepository();
 const petRepository = createPetRepository();
 const breedRepository = createBreedRepository();
+const vaccinationRepository = createVaccinationRepository();
 
 // --- Use-case singletons ---
 
@@ -55,4 +62,4 @@ export const restoreSessionUseCase = new RestoreSessionUseCase(authRepository);
 export const getPets = new GetPets(petRepository);
 
 // Export repository instances for direct access where needed
-export { authRepository, petRepository, breedRepository };
+export { authRepository, petRepository, breedRepository, vaccinationRepository };

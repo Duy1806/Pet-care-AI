@@ -203,51 +203,113 @@ export default function RegisterScreen() {
                   </Text>
                 </Pressable>
 
-                <Text style={[typo.headlineMedium, { color: colors.text, marginBottom: spacing.xs }]}>
-                  Kiểm tra hòm thư của bạn
-                </Text>
-                <Text
-                  style={[
-                    typo.bodyMedium,
-                    { color: colors.textSecondary, marginBottom: spacing.md, lineHeight: 22 },
-                  ]}
-                >
-                  Mã OTP xác thực đã được gửi tới{' '}
-                  <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>
-                    {signUpEmail}
+                <View style={{ alignItems: 'center', marginBottom: spacing.md }}>
+                  <View
+                    style={{
+                      width: 64,
+                      height: 64,
+                      borderRadius: 32,
+                      backgroundColor: colors.primaryContainer,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginBottom: spacing.sm,
+                    }}
+                  >
+                    <MaterialCommunityIcons name="email-check-outline" size={36} color={colors.primary} />
+                  </View>
+                  <Text style={[typo.headlineMedium, { color: colors.text, textAlign: 'center' }]}>
+                    Kiểm tra hộp thư email
                   </Text>
-                  . Vui lòng nhập mã để hoàn tất đăng ký tài khoản.
-                </Text>
-
-                {/* Helpful hint for test / mock mode */}
-                <View
-                  style={{
-                    backgroundColor: colors.primaryContainer,
-                    borderRadius: radius.md,
-                    padding: spacing.smd,
-                    marginBottom: spacing.lg,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name="information-outline"
-                    size={20}
-                    color={colors.primary}
-                    style={{ marginRight: spacing.sm }}
-                  />
-                  <Text style={[typo.bodySmall, { color: colors.text, flex: 1 }]}>
-                    Mã xác nhận thử nghiệm (Mock):{' '}
-                    <Text style={{ fontWeight: '700', color: colors.primary }}>123456</Text>
+                  <Text
+                    style={[
+                      typo.bodyMedium,
+                      { color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xs, lineHeight: 22 },
+                    ]}
+                  >
+                    Chúng tôi đã gửi email xác minh tới:{'\n'}
+                    <Text style={{ color: colors.primary, fontWeight: '700' }}>{signUpEmail}</Text>
                   </Text>
                 </View>
 
-                {/* OTP Input */}
-                <OtpInput
-                  value={otpValue}
-                  onChange={setOtpValue}
-                  error={error ?? undefined}
-                />
+                {/* Important Instructions Box */}
+                <View
+                  style={{
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    borderRadius: radius.lg,
+                    padding: spacing.md,
+                    marginBottom: spacing.md,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                    <MaterialCommunityIcons
+                      name="shield-check-outline"
+                      size={20}
+                      color={colors.primary}
+                      style={{ marginRight: spacing.xs, marginTop: 2 }}
+                    />
+                    <Text style={[typo.bodySmall, { color: colors.text, flex: 1, lineHeight: 20 }]}>
+                      Vui lòng mở hộp thư email (kiểm tra cả mục <Text style={{ fontWeight: '700' }}>Spam / Thư rác</Text>) và bấm vào liên kết xác nhận để kích hoạt tài khoản.
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Actions: Open Mail & Go to Login */}
+                <View style={{ gap: spacing.sm, marginBottom: spacing.lg }}>
+                  <PrimaryButton
+                    title="Tôi đã xác nhận email 👉 Đăng nhập ngay"
+                    onPress={() => router.replace('/(auth)/login' as any)}
+                  />
+
+                  <Pressable
+                    onPress={async () => {
+                      try {
+                        const { Linking } = await import('react-native');
+                        await Linking.openURL('mailto:');
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    style={[
+                      styles.secondaryActionButton,
+                      {
+                        borderColor: colors.border,
+                        backgroundColor: colors.surface,
+                        borderRadius: radius.md,
+                      },
+                    ]}
+                  >
+                    <MaterialCommunityIcons name="email-fast-outline" size={18} color={colors.text} />
+                    <Text style={[typo.labelLarge, { color: colors.text, marginLeft: 8 }]}>
+                      Mở ứng dụng Email
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {/* Optional OTP Section */}
+                <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.md }}>
+                  <Text style={[typo.labelMedium, { color: colors.textSecondary, marginBottom: spacing.xs, textAlign: 'center' }]}>
+                    Hoặc nhập mã OTP 6 số nếu email có kèm mã:
+                  </Text>
+
+                  {/* OTP Input */}
+                  <OtpInput
+                    value={otpValue}
+                    onChange={setOtpValue}
+                    error={error ?? undefined}
+                  />
+
+                  {otpValue.length === 6 && (
+                    <View style={{ marginTop: spacing.md }}>
+                      <PrimaryButton
+                        title="Xác nhận mã OTP"
+                        onPress={onOtpSubmit}
+                        loading={isLoading}
+                      />
+                    </View>
+                  )}
+                </View>
 
                 {/* Resend OTP countdown */}
                 <View style={{ alignItems: 'center', marginVertical: spacing.md }}>
@@ -259,26 +321,18 @@ export default function RegisterScreen() {
                           { color: colors.primary, textDecorationLine: 'underline' },
                         ]}
                       >
-                        Gửi lại mã xác nhận
+                        Gửi lại email / mã xác nhận
                       </Text>
                     </Pressable>
                   ) : (
                     <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
-                      Gửi lại mã sau{' '}
+                      Gửi lại email xác nhận sau{' '}
                       <Text style={{ color: colors.primary, fontWeight: '700' }}>
                         {countdown}s
                       </Text>
                     </Text>
                   )}
                 </View>
-
-                {/* Submit OTP */}
-                <PrimaryButton
-                  title="Xác nhận & Bắt đầu"
-                  onPress={onOtpSubmit}
-                  loading={isLoading}
-                  disabled={otpValue.length !== 6}
-                />
               </Animated.View>
             ) : (
               <>
@@ -563,6 +617,13 @@ const styles = StyleSheet.create({
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+  },
+  secondaryActionButton: {
+    height: 48,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   footer: { alignItems: 'center', justifyContent: 'center' },
 });

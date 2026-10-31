@@ -12,6 +12,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +27,7 @@ import * as Haptics from 'expo-haptics';
 import { useAppTheme } from '@/presentation/theme';
 import { useAuthStore } from '@/presentation/stores/useAuthStore';
 import { usePetStore } from '@/presentation/stores/usePetStore';
+import { useVaccinationStore } from '@/presentation/stores/useVaccinationStore';
 import { ThemeToggle } from '@/presentation/components/ThemeToggle';
 import { NetworkBanner } from '@/presentation/components/NetworkBanner';
 import { AddPetModal } from '@/presentation/components/AddPetModal';
@@ -79,6 +81,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const { pets, selectedPet, selectPet, loadPets, isLoading: isPetsLoading } = usePetStore();
+  const { alerts, loadAlerts } = useVaccinationStore();
 
   const [reminders, setReminders] = useState<ReminderItem[]>(INITIAL_REMINDERS);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -86,6 +89,29 @@ export default function HomeScreen() {
   useEffect(() => {
     void loadPets();
   }, [loadPets]);
+
+  useEffect(() => {
+    if (pets.length > 0) {
+      void loadAlerts(pets);
+    }
+  }, [pets, loadAlerts]);
+
+  const handlePressBell = useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (alerts.length > 0) {
+      const urgent = alerts[0];
+      Alert.alert(
+        '🔔 Nhắc nhở lịch tiêm phòng',
+        `Bé ${urgent.petName} có lịch tiêm "${urgent.record.name}" ${urgent.status === 'overdue' ? `đã quá hạn ${Math.abs(urgent.daysDiff)} ngày!` : urgent.status === 'today' ? 'vào hôm nay!' : `vào ngày ${urgent.record.nextDueAt} (còn ${urgent.daysDiff} ngày).`}\n\nBạn có muốn mở sổ tiêm chủng để kiểm tra?`,
+        [
+          { text: 'Để sau', style: 'cancel' },
+          { text: 'Mở sổ tiêm chủng', onPress: () => router.push('/(app)/vaccinations' as any) },
+        ]
+      );
+    } else {
+      Alert.alert('🔔 Thông báo', 'Hiện tại không có lịch tiêm phòng nào sắp tới hạn. Thú cưng của bạn đều đang có lịch tiêm đầy đủ!');
+    }
+  }, [alerts]);
 
   const handleToggleReminder = useCallback((id: string) => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -141,18 +167,20 @@ export default function HomeScreen() {
           <ThemeToggle />
           <Pressable
             hitSlop={8}
-            onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+            onPress={handlePressBell}
             style={[
               styles.bellButton,
               { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
             ]}
           >
             <MaterialCommunityIcons
-              name="bell-outline"
+              name={alerts.length > 0 ? "bell-badge-outline" : "bell-outline"}
               size={20}
-              color={colors.text}
+              color={alerts.length > 0 ? colors.accent : colors.text}
             />
-            <View style={[styles.notificationDot, { backgroundColor: colors.accent }]} />
+            {alerts.length > 0 && (
+              <View style={[styles.notificationDot, { backgroundColor: colors.accent }]} />
+            )}
           </Pressable>
         </View>
       </View>
@@ -316,6 +344,79 @@ export default function HomeScreen() {
           )}
         </View>
 
+        {/* Section 1.5: Vaccination Alert Banner (if upcoming or overdue) */}
+        {alerts.length > 0 && (
+          <Pressable
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/(app)/vaccinations' as any);
+            }}
+            style={[
+              styles.alertBanner,
+              {
+                backgroundColor: alerts[0].status === 'overdue' ? '#FFEBEE' : '#FFF8E1',
+                borderColor: alerts[0].status === 'overdue' ? '#FFCDD2' : '#FFE082',
+                borderRadius: radius.xl,
+                marginHorizontal: spacing.lg,
+                marginTop: spacing.md,
+                padding: spacing.md,
+              },
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View
+                style={[
+                  styles.alertIconCircle,
+                  {
+                    backgroundColor: alerts[0].status === 'overdue' ? '#FFCDD2' : '#FFE082',
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name={alerts[0].status === 'overdue' ? 'alert-decagram' : 'needle'}
+                  size={22}
+                  color={alerts[0].status === 'overdue' ? '#C62828' : '#D97706'}
+                />
+              </View>
+
+              <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text
+                    style={[
+                      typo.labelLarge,
+                      {
+                        color: alerts[0].status === 'overdue' ? '#C62828' : '#D97706',
+                        fontWeight: '700',
+                      },
+                    ]}
+                  >
+                    {alerts[0].status === 'overdue'
+                      ? '⚠️ Quá hạn tiêm phòng!'
+                      : alerts[0].status === 'today'
+                      ? '🔔 Lịch tiêm hôm nay!'
+                      : '⏰ Nhắc lịch tiêm sắp tới'}
+                  </Text>
+                  <Text style={[typo.labelSmall, { color: colors.textSecondary }]}>
+                    {alerts.length > 1 ? `+${alerts.length - 1} lịch khác` : ''}
+                  </Text>
+                </View>
+
+                <Text style={[typo.bodySmall, { color: colors.text, marginTop: 2 }]} numberOfLines={2}>
+                  Bé <Text style={{ fontWeight: '700' }}>{alerts[0].petName}</Text> có lịch tiêm{' '}
+                  <Text style={{ fontWeight: '600' }}>&ldquo;{alerts[0].record.name}&rdquo;</Text> ({alerts[0].record.nextDueAt}).
+                </Text>
+              </View>
+
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={22}
+                color={alerts[0].status === 'overdue' ? '#C62828' : '#D97706'}
+                style={{ marginLeft: 4 }}
+              />
+            </View>
+          </Pressable>
+        )}
+
         {/* Section 2: Quick Actions Grid */}
         <View style={{ marginTop: spacing.lg, paddingHorizontal: spacing.lg }}>
           <Text style={[typo.titleMedium, { color: colors.text, marginBottom: spacing.sm }]}>
@@ -389,7 +490,7 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push('/(app)/dev-test' as any);
+                router.push('/(app)/vaccinations' as any);
               }}
               style={[
                 styles.actionCard,
@@ -716,6 +817,16 @@ const styles = StyleSheet.create({
   },
   tipHeader: {
     flexDirection: 'row',
+    alignItems: 'center',
+  },
+  alertBanner: {
+    borderWidth: 1,
+  },
+  alertIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
     alignItems: 'center',
   },
 });
