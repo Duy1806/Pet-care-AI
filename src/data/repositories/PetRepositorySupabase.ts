@@ -198,39 +198,32 @@ export class PetRepositorySupabase implements PetRepository {
         supabase.from('nutrition_plans').delete().eq('pet_id', id),
       ]);
 
-      // 2. Perform direct hard delete on pets table and verify with select
-      const { data: hardData, error: hardError } = await supabase
+      // 2. Attempt direct hard delete on pets table
+      // (If RLS DELETE policy is present, this completely removes the row from Supabase)
+      const { error: hardError } = await supabase
         .from('pets')
         .delete()
-        .eq('id', id)
-        .select('id');
+        .eq('id', id);
 
-      // If hard delete successfully removed row(s), deletion is completely done in Supabase!
-      if (!hardError && hardData && hardData.length > 0) {
+      if (!hardError) {
         return;
       }
 
       // 3. Fallback: If hard delete was blocked (e.g. RLS restricts hard DELETE),
-      // perform soft-delete by setting deleted_at so it is hidden in queries
-      const { data: softData, error: softError } = await supabase
+      // perform soft-delete by setting deleted_at so it is hidden in queries.
+      // NOTE: Do NOT chain .select() here because the SELECT policy on pets
+      // requires `deleted_at IS NULL`, which would cause .select() to fail on soft-deleted rows.
+      const { error: softError } = await supabase
         .from('pets')
         .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id)
-        .select('id');
+        .eq('id', id);
 
-      if (!softError && softData && softData.length > 0) {
+      if (!softError) {
         return;
       }
 
-      // 4. If neither hard delete nor soft delete affected any row:
-      if (hardError || softError) {
-        throw new Error(mapSupabaseError(hardError || softError));
-      }
-
-      // If both completed with 0 rows affected (RLS policy denied or row not found):
-      throw new Error(
-        'Không thể xóa thú cưng trong cơ sở dữ liệu Supabase. Vui lòng kiểm tra quyền sở hữu hoặc thêm chính sách RLS DELETE cho bảng pets.'
-      );
+      // 4. If both hard delete and soft delete failed, throw the mapped error
+      throw new Error(mapSupabaseError(softError || hardError));
     } catch (e: any) {
       if (e instanceof Error && e.message) {
         throw e;

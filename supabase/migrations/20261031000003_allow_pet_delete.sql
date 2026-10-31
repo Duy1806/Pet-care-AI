@@ -58,3 +58,4 @@ CREATE POLICY "nutrition_plans_delete_owner_or_admin" ON public.nutrition_plans
     USING (
         public.is_pet_owner(pet_id) OR public.is_admin()
     );
+
