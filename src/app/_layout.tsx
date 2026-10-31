@@ -127,8 +127,9 @@ function RootNavigator() {
   useEffect(() => {
     if (!isInitialized) return;
 
-    const inAuthGroup = (segments[0] as string) === '(auth)';
-    const isForgotPassword = (segments[1] as string) === 'forgot-password';
+    const segs = segments as unknown as string[];
+    const inAuthGroup = segs[0] === '(auth)';
+    const isForgotPassword = segs.includes('forgot-password');
     const isAuthenticated = Boolean(user && session);
 
     // CRITICAL: If the user is on the forgot-password screen, NEVER redirect away!
