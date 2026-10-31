@@ -189,41 +189,35 @@ export class PetRepositorySupabase implements PetRepository {
     }
 
     try {
-      // 1. Delete associated child records first to ensure foreign key integrity
+      const nowIso = new Date().toISOString();
+
+      // 1. Mark as deleted/hidden on Supabase (Soft delete)
+      // This updates `deleted_at`, which is officially permitted by the pets_update_owner RLS policy.
+      // Once set, all app queries (.is('deleted_at', null)) will permanently filter out this pet!
+      const { error: softError } = await supabase
+        .from('pets')
+        .update({ deleted_at: nowIso })
+        .eq('id', id);
+
+      if (softError) {
+        throw new Error(mapSupabaseError(softError));
+      }
+
+      // 2. Also mark/delete associated child records
       await Promise.allSettled([
-        supabase.from('vaccinations').delete().eq('pet_id', id),
-        supabase.from('reminders').delete().eq('pet_id', id),
-        supabase.from('weight_logs').delete().eq('pet_id', id),
-        supabase.from('health_logs').delete().eq('pet_id', id),
-        supabase.from('nutrition_plans').delete().eq('pet_id', id),
+        supabase.from('vaccinations').update({ deleted_at: nowIso }).eq('pet_id', id),
+        supabase.from('reminders').update({ deleted_at: nowIso }).eq('pet_id', id),
+        supabase.from('weight_logs').update({ deleted_at: nowIso }).eq('pet_id', id),
+        supabase.from('health_logs').update({ deleted_at: nowIso }).eq('pet_id', id),
+        supabase.from('nutrition_plans').update({ deleted_at: nowIso }).eq('pet_id', id),
       ]);
 
-      // 2. Attempt direct hard delete on pets table
-      // (If RLS DELETE policy is present, this completely removes the row from Supabase)
-      const { error: hardError } = await supabase
+      // 3. Attempt direct hard delete if database has DELETE policies enabled
+      // If blocked by RLS, the pet is already marked hidden with deleted_at above
+      await supabase
         .from('pets')
         .delete()
         .eq('id', id);
-
-      if (!hardError) {
-        return;
-      }
-
-      // 3. Fallback: If hard delete was blocked (e.g. RLS restricts hard DELETE),
-      // perform soft-delete by setting deleted_at so it is hidden in queries.
-      // NOTE: Do NOT chain .select() here because the SELECT policy on pets
-      // requires `deleted_at IS NULL`, which would cause .select() to fail on soft-deleted rows.
-      const { error: softError } = await supabase
-        .from('pets')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id);
-
-      if (!softError) {
-        return;
-      }
-
-      // 4. If both hard delete and soft delete failed, throw the mapped error
-      throw new Error(mapSupabaseError(softError || hardError));
     } catch (e: any) {
       if (e instanceof Error && e.message) {
         throw e;
