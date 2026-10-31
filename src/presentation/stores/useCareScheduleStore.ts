@@ -119,3 +119,4 @@ export const useCareScheduleStore = create<CareScheduleState>((set, get) => ({
     await careReminderRepository.delete(id);
   },
 }));
+

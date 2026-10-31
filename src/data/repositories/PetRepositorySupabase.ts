@@ -50,7 +50,7 @@ function mapRowToPet(row: DbPetRow): Pet {
   };
 }
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class PetRepositorySupabase implements PetRepository {
   async getAll(): Promise<Pet[]> {
@@ -189,25 +189,48 @@ export class PetRepositorySupabase implements PetRepository {
     }
 
     try {
-      // 1. First attempt: Soft-delete (set deleted_at)
-      const { error: softError } = await supabase
-        .from('pets')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id);
+      // 1. Delete associated child records first to ensure foreign key integrity
+      await Promise.allSettled([
+        supabase.from('vaccinations').delete().eq('pet_id', id),
+        supabase.from('reminders').delete().eq('pet_id', id),
+        supabase.from('weight_logs').delete().eq('pet_id', id),
+        supabase.from('health_logs').delete().eq('pet_id', id),
+        supabase.from('nutrition_plans').delete().eq('pet_id', id),
+      ]);
 
-      if (!softError) {
+      // 2. Perform direct hard delete on pets table and verify with select
+      const { data: hardData, error: hardError } = await supabase
+        .from('pets')
+        .delete()
+        .eq('id', id)
+        .select('id');
+
+      // If hard delete successfully removed row(s), deletion is completely done in Supabase!
+      if (!hardError && hardData && hardData.length > 0) {
         return;
       }
 
-      // 2. Second attempt: Direct hard delete
-      const { error: hardError } = await supabase
+      // 3. Fallback: If hard delete was blocked (e.g. RLS restricts hard DELETE),
+      // perform soft-delete by setting deleted_at so it is hidden in queries
+      const { data: softData, error: softError } = await supabase
         .from('pets')
-        .delete()
-        .eq('id', id);
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id)
+        .select('id');
 
-      if (hardError) {
-        throw new Error(mapSupabaseError(softError || hardError));
+      if (!softError && softData && softData.length > 0) {
+        return;
       }
+
+      // 4. If neither hard delete nor soft delete affected any row:
+      if (hardError || softError) {
+        throw new Error(mapSupabaseError(hardError || softError));
+      }
+
+      // If both completed with 0 rows affected (RLS policy denied or row not found):
+      throw new Error(
+        'Không thể xóa thú cưng trong cơ sở dữ liệu Supabase. Vui lòng kiểm tra quyền sở hữu hoặc thêm chính sách RLS DELETE cho bảng pets.'
+      );
     } catch (e: any) {
       if (e instanceof Error && e.message) {
         throw e;

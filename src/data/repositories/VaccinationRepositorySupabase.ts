@@ -66,7 +66,7 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
   }
 
   async getByPetId(petId: string): Promise<VaccinationRecord[]> {
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!UUID_REGEX.test(petId)) {
       return [];
     }
@@ -90,7 +90,7 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
   }
 
   async getUpcomingAlerts(petIds: string[]): Promise<VaccinationRecord[]> {
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const validIds = (petIds || []).filter((id) => UUID_REGEX.test(id));
     if (validIds.length === 0) return [];
 
@@ -187,7 +187,7 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
   }
 
   async delete(id: string): Promise<void> {
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!UUID_REGEX.test(id)) {
       return;
     }

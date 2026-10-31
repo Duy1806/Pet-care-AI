@@ -167,3 +167,4 @@ export const CARE_SUGGESTIONS: CareSuggestion[] = [
     species: 'cat',
   },
 ];
+

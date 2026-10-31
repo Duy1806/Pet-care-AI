@@ -8,7 +8,7 @@ import { supabase } from '../remote/supabaseClient';
 import { mapSupabaseError } from '../remote/supabaseErrors';
 import type { CareCategory, CareReminder } from '@/domain/entities/CareReminder';
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // In-memory local cache for instant UI and non-UUID demo pets
 const localMemoryStore: Map<string, CareReminder[]> = new Map();
@@ -217,3 +217,4 @@ export class CareReminderRepositorySupabase {
 }
 
 export const careReminderRepository = new CareReminderRepositorySupabase();
+
