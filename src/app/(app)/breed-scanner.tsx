@@ -56,7 +56,7 @@ interface BreedAnalysisResult {
 }
 
 const DEFAULT_API_URL =
-  process.env.EXPO_PUBLIC_AI_API_URL || 'http://192.168.1.232:8000/pet/predict';
+  process.env.EXPO_PUBLIC_AI_API_URL || 'http://172.26.23.169:8000/pet/predict';
 
 const SAMPLE_PRESETS: { label: string; icon: string; result: BreedAnalysisResult }[] = [
   {
@@ -221,7 +221,8 @@ export default function BreedScannerScreen() {
   };
 
   /**
-   * Sends image file to FastAPI AI Backend (Base64 JSON / Blob)
+   * Sends image file to FastAPI AI Backend via Base64 JSON
+   * 100% immune to React Native / iOS FormDataPart issues
    */
   const uploadAndPredict = async (uri: string, base64Data?: string | null) => {
     setIsScanning(true);
@@ -231,39 +232,36 @@ export default function BreedScannerScreen() {
     const baseUrl = serverUrl.replace(/\/pet\/(predict|predict-base64)\/?$/, '').replace(/\/$/, '');
 
     try {
-      let response: Response;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 20000);
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-      if (base64Data) {
-        // Gửi qua Base64 JSON: An toàn 100%, không bị lỗi FormData trên React Native / iOS
-        response = await fetch(`${baseUrl}/pet/predict-base64`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify({ image_base64: base64Data }),
-          signal: controller.signal,
-        });
-      } else {
-        // Fallback: Chuyển sang Web Blob chuẩn
+      let base64 = base64Data;
+      if (!base64) {
+        // Fallback: Chuyển ảnh sang Base64 bằng FileReader (an toàn tuyệt đối, không đụng tới FormData)
         const localResponse = await fetch(uri);
         const blob = await localResponse.blob();
-        const filename = uri.split('/').pop() || 'photo.jpg';
-
-        const formData = new FormData();
-        formData.append('file', blob, filename.includes('.') ? filename : `${filename}.jpg`);
-
-        response = await fetch(`${baseUrl}/pet/predict`, {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-          },
-          body: formData,
-          signal: controller.signal,
+        base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const dataUrl = reader.result as string;
+            const clean = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+            resolve(clean);
+          };
+          reader.onerror = () => reject(new Error('Không thể chuyển đổi file ảnh sang base64.'));
+          reader.readAsDataURL(blob);
         });
       }
+
+      // Gửi trực tiếp payload JSON qua endpoint /pet/predict-base64
+      const response = await fetch(`${baseUrl}/pet/predict-base64`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ image_base64: base64 }),
+        signal: controller.signal,
+      });
       clearTimeout(timeoutId);
 
       if (!response.ok) {
@@ -809,7 +807,7 @@ export default function BreedScannerScreen() {
             <TextInput
               value={tempUrl}
               onChangeText={setTempUrl}
-              placeholder="http://192.168.1.232:8000/pet/predict"
+              placeholder="http://172.26.23.169:8000/pet/predict"
               placeholderTextColor={colors.textSecondary}
               autoCapitalize="none"
               autoCorrect={false}
