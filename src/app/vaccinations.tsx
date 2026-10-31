@@ -19,7 +19,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -51,9 +51,11 @@ function getDefaultNextDue(type: VaccinationType): string {
 export default function VaccinationScreen() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const searchParams = useLocalSearchParams<{ petId?: string }>();
   const { pets, selectedPet, selectPet, loadPets } = usePetStore();
   const { records, loadVaccinations, deleteVaccination, markAsCompleted, isLoading } = useVaccinationStore();
 
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | VaccinationType>('all');
 
@@ -69,14 +71,17 @@ export default function VaccinationScreen() {
     }
   }, [pets.length, loadPets]);
 
+  const activePetId = selectedId ?? searchParams.petId ?? selectedPet?.id ?? pets[0]?.id ?? '';
+
+  const effectivePet = useMemo(() => {
+    return pets.find((p) => p.id === activePetId) || selectedPet || pets[0] || null;
+  }, [pets, activePetId, selectedPet]);
+
   useEffect(() => {
-    if (selectedPet?.id) {
-      void loadVaccinations(selectedPet.id);
-    } else if (pets[0]?.id) {
-      selectPet(pets[0]);
-      void loadVaccinations(pets[0].id);
+    if (effectivePet?.id) {
+      void loadVaccinations(effectivePet.id);
     }
-  }, [selectedPet?.id, pets, selectPet, loadVaccinations]);
+  }, [effectivePet?.id, loadVaccinations]);
 
   const handleDelete = useCallback(
     (record: VaccinationRecord) => {
@@ -90,15 +95,15 @@ export default function VaccinationScreen() {
             text: 'Xóa',
             style: 'destructive',
             onPress: () => {
-              if (selectedPet?.id) {
-                void deleteVaccination(record.id, selectedPet.id);
+              if (effectivePet?.id) {
+                void deleteVaccination(record.id, effectivePet.id);
               }
             },
           },
         ]
       );
     },
-    [selectedPet, deleteVaccination]
+    [effectivePet, deleteVaccination]
   );
 
   const handleOpenCompleteModal = (record: VaccinationRecord) => {
@@ -268,7 +273,7 @@ export default function VaccinationScreen() {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               router.push({
                 pathname: '/add-vaccination',
-                params: { petId: selectedPet?.id, defaultStatus: 'completed' },
+                params: { petId: effectivePet?.id, defaultStatus: 'completed' },
               } as any);
             }}
             style={[styles.addTopBtn, { backgroundColor: colors.primary, borderRadius: radius.full }]}
@@ -288,12 +293,13 @@ export default function VaccinationScreen() {
             contentContainerStyle={{ gap: 8, marginTop: spacing.md, paddingBottom: 4 }}
           >
             {pets.map((p) => {
-              const isSelected = selectedPet?.id === p.id;
+              const isSelected = effectivePet?.id === p.id;
               return (
                 <Pressable
                   key={p.id}
                   onPress={() => {
                     void Haptics.selectionAsync();
+                    setSelectedId(p.id);
                     selectPet(p);
                   }}
                   style={[
@@ -518,7 +524,7 @@ export default function VaccinationScreen() {
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   router.push({
                     pathname: '/add-vaccination',
-                    params: { petId: selectedPet?.id, defaultStatus: 'completed' },
+                    params: { petId: effectivePet?.id, defaultStatus: 'completed' },
                   } as any);
                 }}
                 style={[styles.addEmptyBtn, { backgroundColor: colors.primary, borderRadius: radius.lg }]}
@@ -534,7 +540,7 @@ export default function VaccinationScreen() {
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   router.push({
                     pathname: '/add-vaccination',
-                    params: { petId: selectedPet?.id, defaultStatus: 'planned' },
+                    params: { petId: effectivePet?.id, defaultStatus: 'planned' },
                   } as any);
                 }}
                 style={[

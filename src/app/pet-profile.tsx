@@ -71,10 +71,9 @@ export default function PetProfileScreen() {
   const { pets, selectedPet, selectPet, updatePet, deletePet, isLoading: isPetStoreLoading } = usePetStore();
   const { records, loadVaccinations } = useVaccinationStore();
 
-  // Active pet state derived cleanly
+  // Active pet state - user selection takes priority over initial param
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  const activePetId = searchParams.petId || selectedId || selectedPet?.id || (pets.length > 0 ? pets[0].id : '');
+  const activePetId = selectedId ?? searchParams.petId ?? selectedPet?.id ?? pets[0]?.id ?? '';
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -251,7 +250,7 @@ export default function PetProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Top App Bar */}
+      {/* Top App Bar with Sticky Pet Selector */}
       <View
         style={[
           styles.header,
@@ -265,35 +264,98 @@ export default function PetProfileScreen() {
           },
         ]}
       >
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={8}
-          style={[styles.backBtn, { borderColor: colors.border }]}
-        >
-          <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
-        </Pressable>
+        <View style={styles.headerTopRow}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={8}
+            style={[styles.backBtn, { borderColor: colors.border }]}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
+          </Pressable>
 
-        <View style={{ flex: 1, marginLeft: spacing.sm }}>
-          <Text style={[typo.titleLarge, { color: colors.text }]}>
-            Hồ sơ thú cưng
-          </Text>
-          <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
-            Sức khỏe, tiêm chủng & khẩu phần ăn
-          </Text>
+          <View style={{ flex: 1, marginLeft: spacing.sm }}>
+            <Text style={[typo.titleLarge, { color: colors.text, fontWeight: '700' }]}>
+              Hồ sơ thú cưng
+            </Text>
+            <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
+              {currentPet ? `Bé ${currentPet.name} (${currentPet.species === 'dog' ? 'Chó' : 'Mèo'})` : 'Sức khỏe & chăm sóc'}
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={handleOpenEdit}
+            style={[
+              styles.editHeaderBtn,
+              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+            ]}
+          >
+            <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.primary} />
+            <Text style={[typo.labelMedium, { color: colors.primary, marginLeft: 4, fontWeight: '700' }]}>
+              Sửa
+            </Text>
+          </Pressable>
         </View>
 
-        <Pressable
-          onPress={handleOpenEdit}
-          style={[
-            styles.editHeaderBtn,
-            { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-          ]}
-        >
-          <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.primary} />
-          <Text style={[typo.labelMedium, { color: colors.primary, marginLeft: 4, fontWeight: '700' }]}>
-            Sửa
-          </Text>
-        </Pressable>
+        {/* Top Horizontal Pet Switcher (Sticky at top left/bar) */}
+        {pets.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, marginTop: spacing.sm, paddingBottom: 2 }}
+          >
+            {pets.map((pet) => {
+              const isActive = pet.id === currentPet?.id;
+              return (
+                <Pressable
+                  key={pet.id}
+                  onPress={() => {
+                    void Haptics.selectionAsync();
+                    setSelectedId(pet.id);
+                    selectPet(pet);
+                  }}
+                  style={[
+                    styles.petTab,
+                    {
+                      backgroundColor: isActive ? colors.primary : colors.surfaceElevated,
+                      borderColor: isActive ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name={pet.species === 'dog' ? 'dog' : 'cat'}
+                    size={18}
+                    color={isActive ? colors.onPrimary : colors.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      typo.labelMedium,
+                      {
+                        color: isActive ? colors.onPrimary : colors.text,
+                        fontWeight: isActive ? '700' : '500',
+                        marginLeft: 4,
+                      },
+                    ]}
+                  >
+                    {pet.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+
+            <Pressable
+              onPress={() => setIsAddModalOpen(true)}
+              style={[
+                styles.petTab,
+                { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+              ]}
+            >
+              <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
+              <Text style={[typo.labelMedium, { color: colors.primary, marginLeft: 2, fontWeight: '600' }]}>
+                Thêm bé
+              </Text>
+            </Pressable>
+          </ScrollView>
+        )}
       </View>
 
       <ScrollView
@@ -303,62 +365,6 @@ export default function PetProfileScreen() {
           paddingTop: spacing.sm,
         }}
       >
-        {/* Horizontal Pet Switcher if user has multiple pets */}
-        {pets.length > 1 && (
-          <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.md }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {pets.map((pet) => {
-                const isActive = pet.id === currentPet?.id;
-                return (
-                  <Pressable
-                    key={pet.id}
-                    onPress={() => {
-                      void Haptics.selectionAsync();
-                      setSelectedId(pet.id);
-                      selectPet(pet);
-                    }}
-                    style={[
-                      styles.petTab,
-                      {
-                        backgroundColor: isActive ? colors.primary : colors.surface,
-                        borderColor: isActive ? colors.primary : colors.border,
-                      },
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name={pet.species === 'dog' ? 'dog' : 'cat'}
-                      size={16}
-                      color={isActive ? colors.onPrimary : colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        typo.labelMedium,
-                        {
-                          color: isActive ? colors.onPrimary : colors.text,
-                          fontWeight: isActive ? '700' : '500',
-                          marginLeft: 4,
-                        },
-                      ]}
-                    >
-                      {pet.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-
-              <Pressable
-                onPress={() => setIsAddModalOpen(true)}
-                style={[
-                  styles.petTab,
-                  { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-                ]}
-              >
-                <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
-                <Text style={[typo.labelMedium, { color: colors.primary, marginLeft: 2 }]}>Thêm bé</Text>
-              </Pressable>
-            </ScrollView>
-          </View>
-        )}
 
         {/* HERO PET IDENTITY CARD */}
         {currentPet && (
@@ -558,6 +564,7 @@ export default function PetProfileScreen() {
                 <Pressable
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    selectPet(currentPet);
                     router.push({
                       pathname: '/vaccinations',
                       params: { petId: currentPet.id },
@@ -570,13 +577,14 @@ export default function PetProfileScreen() {
                 >
                   <MaterialCommunityIcons name="book-open-outline" size={16} color={colors.primary} />
                   <Text style={[typo.labelMedium, { color: colors.primary, marginLeft: 6, fontWeight: '700' }]}>
-                    Mở sổ tiêm bé
+                    Mở sổ tiêm bé {currentPet.name}
                   </Text>
                 </Pressable>
 
                 <Pressable
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    selectPet(currentPet);
                     router.push({
                       pathname: '/add-vaccination',
                       params: { petId: currentPet.id, defaultStatus: 'planned' },
@@ -1101,6 +1109,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+  },
+  headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
