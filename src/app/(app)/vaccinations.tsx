@@ -808,18 +808,21 @@ export default function VaccinationScreen() {
       </Modal>
 
       {/* ADD / SCHEDULE VACCINATION MODAL */}
-      <AddVaccinationModal
-        visible={isAddModalOpen}
-        defaultStatus={addModalDefaultStatus}
-        onClose={() => {
-          setIsAddModalOpen(false);
-          if (selectedPet?.id) {
-            void loadVaccinations(selectedPet.id);
-          }
-        }}
-        pets={pets}
-        selectedPetId={selectedPet?.id}
-      />
+      {isAddModalOpen && (
+        <AddVaccinationModal
+          key={`${selectedPet?.id ?? 'default'}_${addModalDefaultStatus}`}
+          visible={isAddModalOpen}
+          defaultStatus={addModalDefaultStatus}
+          onClose={() => {
+            setIsAddModalOpen(false);
+            if (selectedPet?.id) {
+              void loadVaccinations(selectedPet.id);
+            }
+          }}
+          pets={pets}
+          selectedPetId={selectedPet?.id}
+        />
+      )}
     </View>
   );
 }

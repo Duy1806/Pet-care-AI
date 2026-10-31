@@ -6,10 +6,14 @@
  * - Planned record (Chưa tiêm / Kế hoạch) with scheduled date
  * - Species-specific vaccine suggestions (Chó vs Mèo)
  * - Automatic 2-step push notifications (1 day before + on due date)
+ * - Proper KeyboardAvoidingView and state synchronization on open
  */
 import React, { useState } from 'react';
 import {
+  Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -110,7 +114,7 @@ export function AddVaccinationModal({
   defaultStatus = 'completed',
 }: AddVaccinationModalProps) {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
-  const { addVaccination, isLoading, error } = useVaccinationStore();
+  const { addVaccination, loadAlerts, isLoading, error, clearError } = useVaccinationStore();
 
   const [status, setStatus] = useState<VaccinationStatus>(defaultStatus);
   const [activePetId, setActivePetId] = useState<string>(
@@ -127,7 +131,7 @@ export function AddVaccinationModal({
 
   const currentPet = pets.find((p) => p.id === activePetId) || pets[0];
   const petSpeciesKey = currentPet?.species === 'cat' ? 'cat' : 'dog';
-  const suggestions = SUGGESTIONS_BY_SPECIES[petSpeciesKey][type];
+  const suggestions = SUGGESTIONS_BY_SPECIES[petSpeciesKey]?.[type] || SUGGESTIONS_BY_SPECIES.dog[type];
 
   const handleStatusChange = (newStatus: VaccinationStatus) => {
     void Haptics.selectionAsync();
@@ -145,9 +149,30 @@ export function AddVaccinationModal({
     setName(sug);
   };
 
+  const handleClose = () => {
+    clearError();
+    setName('');
+    setVetClinic('');
+    setNote('');
+    onClose();
+  };
+
   const handleSubmit = async () => {
-    if (!activePetId) return;
-    if (!name.trim()) return;
+    if (!activePetId) {
+      Alert.alert(
+        'Chưa chọn thú cưng',
+        'Vui lòng chọn hoặc thêm thú cưng trong ứng dụng trước khi ghi sổ tiêm chủng.'
+      );
+      return;
+    }
+
+    if (!name.trim()) {
+      Alert.alert(
+        'Thiếu tên thuốc / vắc-xin',
+        'Vui lòng nhập hoặc chọn tên vắc-xin hoặc thuốc cần tiêm.'
+      );
+      return;
+    }
 
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -170,20 +195,21 @@ export function AddVaccinationModal({
 
     if (success) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setName('');
-      setVetClinic('');
-      setNote('');
-      onClose();
+      void loadAlerts(pets);
+      handleClose();
     }
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.overlay}
+      >
         <View style={[styles.content, { backgroundColor: colors.surface, borderRadius: radius.xxl }]}>
           {/* Header */}
           <View style={styles.header}>
-            <View>
+            <View style={{ flex: 1, marginRight: 8 }}>
               <Text style={[typo.headlineMedium, { color: colors.text }]}>
                 {status === 'completed' ? 'Ghi nhận mũi đã tiêm' : 'Lên lịch hẹn tiêm chủng'}
               </Text>
@@ -193,12 +219,16 @@ export function AddVaccinationModal({
                   : 'Hệ thống tự động nhắc trước 1 ngày và đúng ngày hẹn'}
               </Text>
             </View>
-            <Pressable onPress={onClose} hitSlop={12} style={styles.closeBtn}>
+            <Pressable onPress={handleClose} hitSlop={12} style={styles.closeBtn}>
               <MaterialCommunityIcons name="close" size={24} color={colors.textSecondary} />
             </Pressable>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.lg }}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: spacing.lg }}
+          >
             {error ? (
               <View style={[styles.errorBox, { backgroundColor: colors.errorContainer, borderRadius: radius.md }]}>
                 <Text style={[typo.bodySmall, { color: colors.error }]}>{error}</Text>
@@ -615,7 +645,7 @@ export function AddVaccinationModal({
             {/* Action Buttons */}
             <View style={styles.actionRow}>
               <Pressable
-                onPress={onClose}
+                onPress={handleClose}
                 style={[styles.cancelBtn, { borderColor: colors.border, borderRadius: radius.md }]}
               >
                 <Text style={[typo.labelLarge, { color: colors.textSecondary }]}>Hủy</Text>
@@ -632,7 +662,7 @@ export function AddVaccinationModal({
             </View>
           </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
