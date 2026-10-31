@@ -267,7 +267,7 @@ export default function VaccinationScreen() {
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               router.push({
-                pathname: '/(app)/add-vaccination',
+                pathname: '/add-vaccination',
                 params: { petId: selectedPet?.id, defaultStatus: 'completed' },
               } as any);
             }}
@@ -517,7 +517,7 @@ export default function VaccinationScreen() {
                 onPress={() => {
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   router.push({
-                    pathname: '/(app)/add-vaccination',
+                    pathname: '/add-vaccination',
                     params: { petId: selectedPet?.id, defaultStatus: 'completed' },
                   } as any);
                 }}
@@ -533,7 +533,7 @@ export default function VaccinationScreen() {
                 onPress={() => {
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   router.push({
-                    pathname: '/(app)/add-vaccination',
+                    pathname: '/add-vaccination',
                     params: { petId: selectedPet?.id, defaultStatus: 'planned' },
                   } as any);
                 }}

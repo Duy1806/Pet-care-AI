@@ -14,15 +14,19 @@ import { AndroidImportance } from 'expo-notifications';
 import type { VaccinationType } from '@/domain/entities/Vaccination';
 
 // Configure notification behavior when app is in foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+} catch {
+  // Gracefully ignored in unsupported environments (e.g. headless tests)
+}
 
 const TYPE_VIETNAMESE: Record<VaccinationType, string> = {
   vaccine: 'tiêm vắc-xin',

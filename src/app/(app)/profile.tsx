@@ -277,7 +277,7 @@ export default function ProfileScreen() {
 
             {/* Setting 2.5: Sổ tiêm chủng */}
             <Pressable
-              onPress={() => router.push('/(app)/add-vaccination' as any)}
+              onPress={() => router.push('/add-vaccination' as any)}
               style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 1, padding: spacing.md }]}
             >
               <View style={styles.settingLeft}>

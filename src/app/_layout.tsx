@@ -68,6 +68,18 @@ function RootNavigator() {
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />
+        <Stack.Screen
+          name="vaccinations"
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="add-vaccination"
+          options={{
+            animation: 'slide_from_bottom',
+          }}
+        />
       </Stack>
     </>
   );

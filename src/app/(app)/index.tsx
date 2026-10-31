@@ -105,7 +105,7 @@ export default function HomeScreen() {
         `Bé ${urgent.petName} có lịch tiêm "${urgent.record.name}" ${urgent.status === 'overdue' ? `đã quá hạn ${Math.abs(urgent.daysDiff)} ngày!` : urgent.status === 'today' ? 'vào hôm nay!' : `vào ngày ${urgent.record.nextDueAt} (còn ${urgent.daysDiff} ngày).`}\n\nBạn có muốn mở sổ tiêm chủng để kiểm tra?`,
         [
           { text: 'Để sau', style: 'cancel' },
-          { text: 'Mở sổ tiêm chủng', onPress: () => router.push('/(app)/vaccinations' as any) },
+          { text: 'Mở sổ tiêm chủng', onPress: () => router.push('/vaccinations' as any) },
         ]
       );
     } else {
@@ -349,7 +349,7 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push('/(app)/vaccinations' as any);
+              router.push('/vaccinations' as any);
             }}
             style={[
               styles.alertBanner,
@@ -490,7 +490,7 @@ export default function HomeScreen() {
             <Pressable
               onPress={() => {
                 void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push('/(app)/add-vaccination' as any);
+                router.push('/add-vaccination' as any);
               }}
               style={[
                 styles.actionCard,

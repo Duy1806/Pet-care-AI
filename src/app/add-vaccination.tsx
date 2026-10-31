@@ -210,7 +210,7 @@ export default function AddVaccinationScreen() {
         [
           {
             text: 'Xem sổ tiêm',
-            onPress: () => router.push('/(app)/vaccinations' as any),
+            onPress: () => router.push('/vaccinations' as any),
           },
           {
             text: 'Đóng',
@@ -264,7 +264,7 @@ export default function AddVaccinationScreen() {
           <Pressable
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/(app)/vaccinations' as any);
+              router.push('/vaccinations' as any);
             }}
             style={[
               styles.listTopBtn,
