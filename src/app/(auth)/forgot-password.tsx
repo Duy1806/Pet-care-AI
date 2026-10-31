@@ -78,13 +78,15 @@ export default function ForgotPasswordScreen() {
     error,
     clearError,
     sendResetCode,
+    verifyOtp,
     resetPassword,
     resetForgotPasswordFlow,
   } = useAuthStore();
 
-  // Local state for countdown
+  // Local state for countdown & OTP input
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
 
   // Password visibility for step 3
   const [showPassword, setShowPassword] = useState(false);
@@ -166,13 +168,6 @@ export default function ForgotPasswordScreen() {
     };
   }, [forgotPasswordStep, countdown]);
 
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      resetForgotPasswordFlow();
-    };
-  }, [resetForgotPasswordFlow]);
-
   const currentStepNumber =
     forgotPasswordStep === 'email'
       ? 1
@@ -186,15 +181,17 @@ export default function ForgotPasswordScreen() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     clearError();
     if (forgotPasswordStep === 'email') {
+      resetForgotPasswordFlow();
       router.back();
     } else if (forgotPasswordStep === 'otp') {
       useAuthStore.setState({ forgotPasswordStep: 'email' });
     } else if (forgotPasswordStep === 'new-password') {
       useAuthStore.setState({ forgotPasswordStep: 'otp' });
     } else {
+      resetForgotPasswordFlow();
       router.replace('/(auth)/login' as any);
     }
-  }, [forgotPasswordStep, clearError]);
+  }, [forgotPasswordStep, clearError, resetForgotPasswordFlow]);
 
   // Step 1: Submit email
   const onEmailSubmit = useCallback(
@@ -208,6 +205,16 @@ export default function ForgotPasswordScreen() {
     },
     [sendResetCode, clearError],
   );
+
+  // Step 2: Verify OTP
+  const handleVerifyOtp = useCallback(async () => {
+    if (!otpCode.trim()) return;
+    clearError();
+    const ok = await verifyOtp(otpCode.trim());
+    if (ok) {
+      useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+    }
+  }, [otpCode, verifyOtp, clearError]);
 
   // Step 2: Resend email
   const handleResendEmail = useCallback(async () => {
@@ -472,8 +479,35 @@ export default function ForgotPasswordScreen() {
                   </View>
                 </View>
 
+                {/* Alternative: Enter OTP / Token */}
+                <View style={{ width: '100%', marginVertical: spacing.sm }}>
+                  <AppTextField
+                    label="Hoặc nhập mã số (OTP) từ email"
+                    value={otpCode}
+                    onChangeText={setOtpCode}
+                    leftIcon="numeric"
+                    keyboardType="number-pad"
+                    placeholder="Nhập mã xác nhận..."
+                  />
+                  {otpCode.trim().length >= 6 ? (
+                    <PrimaryButton
+                      title="Xác nhận mã OTP"
+                      onPress={handleVerifyOtp}
+                      loading={isLoading}
+                      style={{ marginTop: spacing.xs }}
+                    />
+                  ) : null}
+                </View>
+
+                {/* Direct shortcut button */}
+                <PrimaryButton
+                  title="🔑 Đã bấm link trong email? Đặt mật khẩu mới"
+                  onPress={() => useAuthStore.setState({ forgotPasswordStep: 'new-password' })}
+                  style={{ width: '100%', marginTop: spacing.xs }}
+                />
+
                 {/* Resend Countdown */}
-                <View style={{ marginVertical: spacing.sm }}>
+                <View style={{ marginVertical: spacing.md }}>
                   {canResend ? (
                     <Pressable onPress={handleResendEmail} hitSlop={8}>
                       <Text
@@ -494,22 +528,6 @@ export default function ForgotPasswordScreen() {
                     </Text>
                   )}
                 </View>
-
-                {/* Direct shortcut button for convenience / testing */}
-                <Pressable
-                  onPress={() => useAuthStore.setState({ forgotPasswordStep: 'new-password' })}
-                  style={{
-                    marginTop: spacing.md,
-                    paddingVertical: spacing.sm,
-                    paddingHorizontal: spacing.md,
-                    borderRadius: radius.md,
-                    backgroundColor: colors.surfaceElevated,
-                  }}
-                >
-                  <Text style={[typo.labelSmall, { color: colors.textSecondary }]}>
-                    👉 Đã bấm link trên điện thoại? Chuyển sang bước Đặt lại mật khẩu
-                  </Text>
-                </Pressable>
               </Animated.View>
             )}
 

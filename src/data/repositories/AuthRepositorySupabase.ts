@@ -210,7 +210,7 @@ export class AuthRepositorySupabase implements AuthRepository {
 
   async sendPasswordResetCode(email: string): Promise<void> {
     try {
-      const redirectUrl = Linking.createURL('/(auth)/forgot-password', {
+      const redirectUrl = Linking.createURL('forgot-password', {
         queryParams: { step: 'new-password' },
       });
       const { error } = await supabase.auth.resetPasswordForEmail(email, {

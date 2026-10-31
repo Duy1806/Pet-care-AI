@@ -245,9 +245,7 @@ export default function LoginScreen() {
               <SocialButton
                 provider="google"
                 onPress={() => {}}
-                style={{ marginBottom: spacing.smd }}
               />
-              <SocialButton provider="apple" onPress={() => {}} />
             </Animated.View>
 
             {/* Register link */}
