@@ -14,7 +14,7 @@
 2. Trên điện thoại cài **Expo Go bản mới nhất** (App Store hoặc CH Play).
 3. Mở terminal và chạy lần lượt:
 
-        git clone https://github.com/TrLy24/Pet-Care-AI.git
+        git clone https://github.com/Duy1806/Pet-Care-AI.git
         cd Pet-Care-AI
         npm ci
         npx expo start
