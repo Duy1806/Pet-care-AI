@@ -21,11 +21,11 @@ export class ChatHistoryDao {
     if (this.isInitialized) return;
     try {
       const db = await getDatabase();
+
+      // Step 1: Create base table if it doesn't exist
       await db.execAsync(`
         CREATE TABLE IF NOT EXISTS chat_messages (
           id TEXT PRIMARY KEY,
-          user_id TEXT NOT NULL DEFAULT 'anonymous',
-          session_id TEXT NOT NULL DEFAULT 'default',
           sender TEXT NOT NULL,
           text TEXT NOT NULL,
           timestamp INTEGER NOT NULL,
@@ -38,19 +38,47 @@ export class ChatHistoryDao {
           is_error INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS idx_chat_timestamp ON chat_messages(timestamp);
-        CREATE INDEX IF NOT EXISTS idx_chat_user_time ON chat_messages(user_id, timestamp);
       `);
 
-      // Migration: Ensure user_id column exists if table was created in older schema
-      try {
+      // Step 2: Check columns via PRAGMA to safely perform migration without crashing
+      const columns = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(chat_messages);`);
+      const colNames = new Set(columns.map((c) => c.name));
+
+      // Step 3: Add user_id column if table was created in earlier version
+      if (!colNames.has('user_id')) {
         await db.execAsync(`ALTER TABLE chat_messages ADD COLUMN user_id TEXT NOT NULL DEFAULT 'anonymous';`);
-      } catch {
-        // user_id column already exists
       }
+
+      // Step 4: Add session_id column if table was created in earlier version
+      if (!colNames.has('session_id')) {
+        await db.execAsync(`ALTER TABLE chat_messages ADD COLUMN session_id TEXT NOT NULL DEFAULT 'default';`);
+      }
+
+      // Step 5: Now that user_id column is guaranteed to exist, create index safely
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_chat_user_time ON chat_messages(user_id, timestamp);
+      `);
 
       this.isInitialized = true;
     } catch (err) {
       console.warn('[ChatHistoryDao] Failed to ensure table:', err);
+    }
+  }
+
+  /**
+   * Migrate and link any past anonymous questions to the active logged-in user
+   */
+  static async associateAnonymousMessages(userId: string): Promise<void> {
+    if (!userId || userId === 'anonymous') return;
+    await this.ensureTable();
+    try {
+      const db = await getDatabase();
+      await db.runAsync(
+        `UPDATE chat_messages SET user_id = ? WHERE user_id = 'anonymous' OR user_id IS NULL`,
+        [userId]
+      );
+    } catch (err) {
+      console.warn('[ChatHistoryDao] associateAnonymousMessages error:', err);
     }
   }
 
@@ -62,7 +90,10 @@ export class ChatHistoryDao {
     try {
       const db = await getDatabase();
       const rows = await db.getAllAsync<any>(
-        `SELECT * FROM chat_messages WHERE user_id = ? AND session_id = ? ORDER BY timestamp ASC`,
+        `SELECT * FROM chat_messages 
+         WHERE (user_id = ? OR user_id = 'anonymous' OR user_id IS NULL) 
+           AND session_id = ? 
+         ORDER BY timestamp ASC`,
         [userId, sessionId]
       );
 
@@ -145,7 +176,8 @@ export class ChatHistoryDao {
       const rows = await db.getAllAsync<any>(
         `SELECT id, text, timestamp, pet_name 
          FROM chat_messages 
-         WHERE user_id = ? AND sender = 'user' 
+         WHERE (user_id = ? OR user_id = 'anonymous' OR user_id IS NULL) 
+           AND sender = 'user' 
          ORDER BY timestamp DESC 
          LIMIT 50`,
         [userId]

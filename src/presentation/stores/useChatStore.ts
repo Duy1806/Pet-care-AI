@@ -108,6 +108,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   loadPersistedHistory: async () => {
     try {
       const uid = get().currentUserId || 'anonymous';
+      if (uid !== 'anonymous') {
+        await ChatHistoryDao.associateAnonymousMessages(uid);
+      }
       const savedMessages = await ChatHistoryDao.getAllMessages(uid);
       if (savedMessages && savedMessages.length > 0) {
         set({ messages: [INITIAL_WELCOME_MESSAGE, ...savedMessages] });
