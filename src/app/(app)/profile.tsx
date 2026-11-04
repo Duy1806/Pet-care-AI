@@ -296,67 +296,9 @@ export default function ProfileScreen() {
                   📞 {user.phone}
                 </Text>
               ) : null}
-
-              <View
-                style={[
-                  styles.roleBadge,
-                  { backgroundColor: colors.primary + '15', marginTop: spacing.xs },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="shield-check"
-                  size={14}
-                  color={colors.primary}
-                />
-                <Text
-                  style={[
-                    typo.labelSmall,
-                    { color: colors.primary, fontWeight: '700', marginLeft: 4 },
-                  ]}
-                >
-                  {user?.role === 'admin' ? 'Quản trị viên' : 'Chủ nuôi tiêu chuẩn'}
-                </Text>
-              </View>
             </View>
           </View>
         </View>
-
-        {/* VIP Admin Portal Card (Dành riêng cho Quản trị viên) */}
-        {user?.role === 'admin' ? (
-          <Pressable
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push('/admin' as any);
-            }}
-            style={[
-              styles.adminVipCard,
-              {
-                backgroundColor: '#FEF3C7',
-                borderColor: '#F59E0B',
-                marginTop: spacing.md,
-                borderRadius: radius.xl,
-              },
-            ]}
-          >
-            <View style={[styles.adminVipIconCircle, { backgroundColor: '#F59E0B' }]}>
-              <MaterialCommunityIcons name="shield-crown" size={24} color="#FFFFFF" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={[typo.titleSmall, { color: '#92400E', fontWeight: '800' }]}>
-                  Bảng Điều Khiển Admin Portal
-                </Text>
-                <View style={{ backgroundColor: '#D97706', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, marginLeft: 6 }}>
-                  <Text style={{ fontSize: 10, color: '#FFFFFF', fontWeight: '800' }}>VIP</Text>
-                </View>
-              </View>
-              <Text style={[typo.caption, { color: '#B45309', marginTop: 2 }]}>
-                Giám sát KPI, người dùng, tư vấn AI & danh mục giống loài
-              </Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={24} color="#92400E" />
-          </Pressable>
-        ) : null}
 
         {/* My Pets Section */}
         <View style={{ marginTop: spacing.lg }}>
@@ -494,14 +436,7 @@ export default function ProfileScreen() {
             {/* Setting 2.5: Sổ tiêm chủng */}
             <Pressable
               onPress={() => router.push('/add-vaccination' as any)}
-              style={[
-                styles.settingRow,
-                {
-                  borderBottomColor: colors.border,
-                  borderBottomWidth: user?.role === 'admin' ? 1 : 0,
-                  padding: spacing.md,
-                },
-              ]}
+              style={[styles.settingRow, { padding: spacing.md }]}
             >
               <View style={styles.settingLeft}>
                 <MaterialCommunityIcons name="needle" size={22} color="#0284C7" />
@@ -512,26 +447,6 @@ export default function ProfileScreen() {
               </View>
               <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textTertiary} />
             </Pressable>
-
-            {/* Setting 3: Trung tâm Quản trị Admin (Chỉ hiển thị khi đã được cấp quyền admin) */}
-            {user?.role === 'admin' && (
-              <Pressable
-                onPress={() => {
-                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  router.push('/admin' as any);
-                }}
-                style={[styles.settingRow, { padding: spacing.md }]}
-              >
-                <View style={styles.settingLeft}>
-                  <MaterialCommunityIcons name="shield-crown-outline" size={22} color="#D97706" />
-                  <View style={{ marginLeft: spacing.sm }}>
-                    <Text style={[typo.labelLarge, { color: '#B45309', fontWeight: '700' }]}>Trung tâm Quản trị Admin</Text>
-                    <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>Xem báo cáo KPI, người dùng & AI</Text>
-                  </View>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={20} color="#D97706" />
-              </Pressable>
-            )}
           </View>
         </View>
 
@@ -738,14 +653,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -853,24 +760,6 @@ const styles = StyleSheet.create({
   cancelModalBtn: {
     borderWidth: 1,
     paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  adminVipCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderWidth: 1.5,
-    elevation: 2,
-    shadowColor: '#D97706',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-  },
-  adminVipIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },

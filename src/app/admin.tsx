@@ -183,24 +183,12 @@ export default function AdminScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       {/* Top Admin Header */}
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <Pressable
-          onPress={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(app)' as any);
-            }
-          }}
-          hitSlop={12}
-          style={[styles.backBtn, { backgroundColor: colors.surfaceElevated }]}
-        >
-          <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
-        </Pressable>
+        <View style={[styles.adminHeaderIconCircle, { backgroundColor: '#FEF3C7' }]}>
+          <MaterialCommunityIcons name="shield-crown" size={22} color="#D97706" />
+        </View>
 
         <View style={{ flex: 1, marginLeft: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <MaterialCommunityIcons name="shield-crown" size={18} color="#EAB308" style={{ marginRight: 4 }} />
             <Text style={[typo.titleMedium, { color: colors.text, fontWeight: '800' }]}>
               Admin Portal
             </Text>
@@ -211,26 +199,12 @@ export default function AdminScreen() {
             </View>
           </View>
           <Text style={[typo.caption, { color: colors.textSecondary }]} numberOfLines={1}>
-            Quản trị & Vận hành PawCare AI
+            {user?.fullName ? `Quản trị viên: ${user.fullName}` : 'Hệ thống Quản trị & Vận hành PawCare AI'}
           </Text>
         </View>
 
-        {/* Action Buttons: App Khách, Làm mới, Đăng xuất */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Pressable
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/(app)' as any);
-            }}
-            hitSlop={6}
-            style={[styles.clientViewBtn, { backgroundColor: colors.primaryContainer }]}
-          >
-            <MaterialCommunityIcons name="cellphone" size={14} color={colors.primary} />
-            <Text style={[typo.labelSmall, { color: colors.primary, fontWeight: '700', marginLeft: 3 }]}>
-              App Khách
-            </Text>
-          </Pressable>
-
+        {/* Action Buttons: Làm mới & Đăng xuất */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Pressable
             onPress={onRefresh}
             hitSlop={6}
@@ -242,9 +216,12 @@ export default function AdminScreen() {
           <Pressable
             onPress={handleAdminLogout}
             hitSlop={6}
-            style={[styles.backBtn, { backgroundColor: colors.errorContainer }]}
+            style={[styles.logoutBtn, { backgroundColor: colors.errorContainer }]}
           >
-            <MaterialCommunityIcons name="logout" size={18} color={colors.error} />
+            <MaterialCommunityIcons name="logout" size={16} color={colors.error} />
+            <Text style={[typo.labelSmall, { color: colors.error, fontWeight: '700', marginLeft: 4 }]}>
+              Đăng xuất
+            </Text>
           </Pressable>
         </View>
       </View>
@@ -719,12 +696,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  clientViewBtn: {
+  adminHeaderIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 7,
-    borderRadius: 14,
+    borderRadius: 12,
   },
   verifiedBadge: {
     backgroundColor: '#DCFCE7',

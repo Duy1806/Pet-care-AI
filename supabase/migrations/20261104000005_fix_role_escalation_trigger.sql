@@ -32,3 +32,4 @@ BEGIN
     RAISE EXCEPTION 'Bạn không có quyền thay đổi vai trò tài khoản.';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+

@@ -134,6 +134,7 @@ function RootNavigator() {
     const inAuthGroup = segs[0] === '(auth)';
     const isForgotPassword = segs.includes('forgot-password');
     const isAdminRoute = segs[0] === 'admin';
+    const isAppRoute = segs[0] === '(app)';
     const isAuthenticated = Boolean(user && session);
 
     // CRITICAL: If the user is on the forgot-password screen, NEVER redirect away!
@@ -151,8 +152,11 @@ function RootNavigator() {
         router.replace('/(app)' as any);
       }
     } else if (isAuthenticated && isAdminRoute && user?.role !== 'admin') {
-      // Strict Security Guard: Standard owners can NEVER access the Admin Portal
+      // Strict Security Guard: Standard users can NEVER access Admin Portal
       router.replace('/(app)' as any);
+    } else if (isAuthenticated && isAppRoute && user?.role === 'admin') {
+      // Admins enter directly into Admin Portal, not user app
+      router.replace('/admin' as any);
     }
   }, [user, session, isInitialized, segments, router]);
 
