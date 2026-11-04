@@ -3,6 +3,7 @@
  */
 export interface ChatMessage {
   id: string;
+  conversationId?: string;
   sender: 'user' | 'assistant';
   text: string;
   timestamp: number;
@@ -16,4 +17,16 @@ export interface ChatMessage {
   suggestedActions?: string[];
   isError?: boolean;
 }
+
+export interface ChatConversation {
+  id: string;
+  userId: string;
+  title: string;
+  petId?: string;
+  petName?: string;
+  createdAt: number;
+  updatedAt: number;
+  lastMessage?: string;
+}
+
 

@@ -1,18 +1,13 @@
 /**
  * PawCare AI — Chat History DAO (SQLite)
  *
- * Persists AI Veterinary Assistant messages and user question history
- * to the local SQLite database (pawcare.db) with strict user isolation (multi-tenancy).
+ * Implements ChatGPT/Gemini conversation architecture with local SQLite persistence:
+ * - chat_conversations: stores thread titles, timestamps, and pet context
+ * - chat_messages: stores chronological user and AI messages linked by conversation_id
+ * - Backward compatibility migration for older chat records
  */
 import { getDatabase } from './database';
-import type { ChatMessage } from '@/domain/entities/ChatMessage';
-
-export interface QuestionHistoryItem {
-  id: string;
-  question: string;
-  timestamp: number;
-  petName?: string;
-}
+import type { ChatConversation, ChatMessage } from '@/domain/entities/ChatMessage';
 
 export class ChatHistoryDao {
   private static isInitialized = false;
@@ -22,131 +17,205 @@ export class ChatHistoryDao {
     try {
       const db = await getDatabase();
 
-      // Step 1: Create base table if it doesn't exist
+      // 1. Ensure chat_conversations table exists
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS chat_conversations (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          title TEXT NOT NULL,
+          pet_name TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_conversations_user 
+          ON chat_conversations(user_id, updated_at DESC);
+      `);
+
+      // 2. Ensure chat_messages table exists
       await db.execAsync(`
         CREATE TABLE IF NOT EXISTS chat_messages (
           id TEXT PRIMARY KEY,
+          conversation_id TEXT,
+          user_id TEXT NOT NULL DEFAULT 'anonymous',
           sender TEXT NOT NULL,
-          text TEXT NOT NULL,
-          timestamp INTEGER NOT NULL,
-          pet_id TEXT,
-          pet_name TEXT,
-          species TEXT,
-          breed TEXT,
-          weight_kg REAL,
-          suggested_actions TEXT,
-          is_error INTEGER NOT NULL DEFAULT 0
+          content TEXT,
+          created_at INTEGER NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_chat_timestamp ON chat_messages(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_messages_conv 
+          ON chat_messages(conversation_id, created_at ASC);
       `);
 
-      // Step 2: Check columns via PRAGMA to safely perform migration without crashing
-      const columns = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(chat_messages);`);
-      const colNames = new Set(columns.map((c) => c.name));
+      // 3. Inspect columns of chat_messages to migrate legacy schema if needed
+      const msgCols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(chat_messages);`);
+      const colSet = new Set(msgCols.map((c) => c.name));
 
-      // Step 3: Add user_id column if table was created in earlier version
-      if (!colNames.has('user_id')) {
-        await db.execAsync(`ALTER TABLE chat_messages ADD COLUMN user_id TEXT NOT NULL DEFAULT 'anonymous';`);
+      if (!colSet.has('conversation_id')) {
+        await db.execAsync(`ALTER TABLE chat_messages ADD COLUMN conversation_id TEXT;`);
+      }
+      if (!colSet.has('content')) {
+        await db.execAsync(`ALTER TABLE chat_messages ADD COLUMN content TEXT;`);
+      }
+      if (!colSet.has('created_at')) {
+        await db.execAsync(`ALTER TABLE chat_messages ADD COLUMN created_at INTEGER;`);
       }
 
-      // Step 4: Add session_id column if table was created in earlier version
-      if (!colNames.has('session_id')) {
-        await db.execAsync(`ALTER TABLE chat_messages ADD COLUMN session_id TEXT NOT NULL DEFAULT 'default';`);
+      // If legacy messages exist with `text` but `content` is null, copy `text` into `content`
+      if (colSet.has('text')) {
+        try {
+          await db.execAsync(`
+            UPDATE chat_messages 
+            SET content = text 
+            WHERE content IS NULL AND text IS NOT NULL;
+          `);
+        } catch {
+          // ignore
+        }
       }
 
-      // Step 5: Now that user_id column is guaranteed to exist, create index safely
-      await db.execAsync(`
-        CREATE INDEX IF NOT EXISTS idx_chat_user_time ON chat_messages(user_id, timestamp);
-      `);
+      // If legacy messages exist with `timestamp` but `created_at` is null, copy `timestamp`
+      if (colSet.has('timestamp')) {
+        try {
+          await db.execAsync(`
+            UPDATE chat_messages 
+            SET created_at = timestamp 
+            WHERE created_at IS NULL AND timestamp IS NOT NULL;
+          `);
+        } catch {
+          // ignore
+        }
+      }
+
+      // 4. Migrate any orphaned messages into a default conversation
+      const orphaned = await db.getAllAsync<any>(
+        `SELECT id, user_id, content, created_at, text, timestamp 
+         FROM chat_messages 
+         WHERE conversation_id IS NULL OR conversation_id = '' 
+         ORDER BY created_at ASC`
+      );
+
+      if (orphaned.length > 0) {
+        const defaultConvId = 'conv_legacy_default';
+        const firstMsg = orphaned[0];
+        const titleText = (firstMsg.content || firstMsg.text || 'Tư vấn sức khỏe thú cưng')
+          .slice(0, 36)
+          .trim();
+        const convTime = firstMsg.created_at || firstMsg.timestamp || Date.now();
+        const convUserId = firstMsg.user_id || 'anonymous';
+
+        await db.runAsync(
+          `INSERT OR IGNORE INTO chat_conversations (id, user_id, title, pet_name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [defaultConvId, convUserId, titleText, null, convTime, convTime]
+        );
+
+        await db.runAsync(
+          `UPDATE chat_messages 
+           SET conversation_id = ? 
+           WHERE conversation_id IS NULL OR conversation_id = ''`,
+          [defaultConvId]
+        );
+      }
 
       this.isInitialized = true;
     } catch (err) {
-      console.warn('[ChatHistoryDao] Failed to ensure table:', err);
+      console.warn('[ChatHistoryDao] Failed to ensure tables:', err);
     }
   }
 
   /**
-   * Migrate and link any past anonymous questions to the active logged-in user
+   * Create or update a conversation header
    */
-  static async associateAnonymousMessages(userId: string): Promise<void> {
-    if (!userId || userId === 'anonymous') return;
+  static async upsertConversation(conv: ChatConversation): Promise<void> {
     await this.ensureTable();
     try {
       const db = await getDatabase();
       await db.runAsync(
-        `UPDATE chat_messages SET user_id = ? WHERE user_id = 'anonymous' OR user_id IS NULL`,
-        [userId]
+        `INSERT OR REPLACE INTO chat_conversations (id, user_id, title, pet_name, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [conv.id, conv.userId, conv.title, conv.petName ?? null, conv.createdAt, conv.updatedAt]
       );
     } catch (err) {
-      console.warn('[ChatHistoryDao] associateAnonymousMessages error:', err);
+      console.warn('[ChatHistoryDao] upsertConversation error:', err);
     }
   }
 
   /**
-   * Retrieve all messages for a specific user in chronological order
+   * Get all conversations for a user, sorted newest first
    */
-  static async getAllMessages(userId = 'anonymous', sessionId = 'default'): Promise<ChatMessage[]> {
+  static async getConversations(userId = 'anonymous'): Promise<ChatConversation[]> {
     await this.ensureTable();
     try {
       const db = await getDatabase();
       const rows = await db.getAllAsync<any>(
-        `SELECT * FROM chat_messages 
-         WHERE (user_id = ? OR user_id = 'anonymous' OR user_id IS NULL) 
-           AND session_id = ? 
-         ORDER BY timestamp ASC`,
-        [userId, sessionId]
+        `SELECT c.*, 
+           (SELECT content FROM chat_messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message
+         FROM chat_conversations c
+         WHERE (c.user_id = ? OR c.user_id = 'anonymous' OR c.user_id IS NULL)
+         ORDER BY c.updated_at DESC`,
+        [userId]
       );
 
       return rows.map((r) => ({
         id: r.id,
-        sender: r.sender as 'user' | 'assistant',
-        text: r.text,
-        timestamp: r.timestamp,
-        petContext:
-          r.pet_id || r.pet_name
-            ? {
-                petId: r.pet_id,
-                petName: r.pet_name,
-                species: r.species,
-                breed: r.breed,
-                weightKg: r.weight_kg,
-              }
-            : undefined,
-        suggestedActions: r.suggested_actions ? JSON.parse(r.suggested_actions) : undefined,
-        isError: Boolean(r.is_error),
+        userId: r.user_id,
+        title: r.title,
+        petName: r.pet_name ?? undefined,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+        lastMessage: r.last_message ?? undefined,
       }));
     } catch (err) {
-      console.warn('[ChatHistoryDao] getAllMessages error:', err);
+      console.warn('[ChatHistoryDao] getConversations error:', err);
       return [];
     }
   }
 
   /**
-   * Persist a single chat message tied to a specific user
+   * Get all messages for a specific conversation
    */
-  static async saveMessage(msg: ChatMessage, userId = 'anonymous', sessionId = 'default'): Promise<void> {
+  static async getConversationMessages(conversationId: string): Promise<ChatMessage[]> {
     await this.ensureTable();
     try {
       const db = await getDatabase();
+      const rows = await db.getAllAsync<any>(
+        `SELECT * FROM chat_messages 
+         WHERE conversation_id = ? 
+         ORDER BY created_at ASC`,
+        [conversationId]
+      );
+
+      return rows.map((r) => ({
+        id: r.id,
+        conversationId: r.conversation_id,
+        sender: r.sender as 'user' | 'assistant',
+        text: r.content || r.text || '',
+        timestamp: r.created_at || r.timestamp || Date.now(),
+      }));
+    } catch (err) {
+      console.warn('[ChatHistoryDao] getConversationMessages error:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Save a single chat message
+   */
+  static async saveMessage(msg: ChatMessage, conversationId: string, userId = 'anonymous'): Promise<void> {
+    await this.ensureTable();
+    try {
+      const db = await getDatabase();
+      const ts = msg.timestamp || Date.now();
+
       await db.runAsync(
-        `INSERT OR REPLACE INTO chat_messages 
-         (id, user_id, session_id, sender, text, timestamp, pet_id, pet_name, species, breed, weight_kg, suggested_actions, is_error)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          msg.id,
-          userId,
-          sessionId,
-          msg.sender,
-          msg.text,
-          msg.timestamp,
-          msg.petContext?.petId ?? null,
-          msg.petContext?.petName ?? null,
-          msg.petContext?.species ?? null,
-          msg.petContext?.breed ?? null,
-          msg.petContext?.weightKg ?? null,
-          msg.suggestedActions ? JSON.stringify(msg.suggestedActions) : null,
-          msg.isError ? 1 : 0,
-        ]
+        `INSERT OR REPLACE INTO chat_messages (id, conversation_id, user_id, sender, content, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [msg.id, conversationId, userId, msg.sender, msg.text, ts]
+      );
+
+      // Touch updated_at on the conversation
+      await db.runAsync(
+        `UPDATE chat_conversations SET updated_at = ? WHERE id = ?`,
+        [ts, conversationId]
       );
     } catch (err) {
       console.warn('[ChatHistoryDao] saveMessage error:', err);
@@ -154,57 +223,16 @@ export class ChatHistoryDao {
   }
 
   /**
-   * Delete messages for a specific user
+   * Delete an entire conversation and all its messages
    */
-  static async clearMessages(userId = 'anonymous', sessionId = 'default'): Promise<void> {
+  static async deleteConversation(conversationId: string): Promise<void> {
     await this.ensureTable();
     try {
       const db = await getDatabase();
-      await db.runAsync(`DELETE FROM chat_messages WHERE user_id = ? AND session_id = ?`, [userId, sessionId]);
+      await db.runAsync(`DELETE FROM chat_messages WHERE conversation_id = ?`, [conversationId]);
+      await db.runAsync(`DELETE FROM chat_conversations WHERE id = ?`, [conversationId]);
     } catch (err) {
-      console.warn('[ChatHistoryDao] clearMessages error:', err);
-    }
-  }
-
-  /**
-   * Query distinct past user questions for the active user only
-   */
-  static async getQuestionHistory(userId = 'anonymous'): Promise<QuestionHistoryItem[]> {
-    await this.ensureTable();
-    try {
-      const db = await getDatabase();
-      const rows = await db.getAllAsync<any>(
-        `SELECT id, text, timestamp, pet_name 
-         FROM chat_messages 
-         WHERE (user_id = ? OR user_id = 'anonymous' OR user_id IS NULL) 
-           AND sender = 'user' 
-         ORDER BY timestamp DESC 
-         LIMIT 50`,
-        [userId]
-      );
-
-      return rows.map((r) => ({
-        id: r.id,
-        question: r.text,
-        timestamp: r.timestamp,
-        petName: r.pet_name ?? undefined,
-      }));
-    } catch (err) {
-      console.warn('[ChatHistoryDao] getQuestionHistory error:', err);
-      return [];
-    }
-  }
-
-  /**
-   * Delete a single question by id
-   */
-  static async deleteQuestion(id: string): Promise<void> {
-    await this.ensureTable();
-    try {
-      const db = await getDatabase();
-      await db.runAsync(`DELETE FROM chat_messages WHERE id = ?`, [id]);
-    } catch (err) {
-      console.warn('[ChatHistoryDao] deleteQuestion error:', err);
+      console.warn('[ChatHistoryDao] deleteConversation error:', err);
     }
   }
 }

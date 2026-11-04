@@ -1,44 +1,22 @@
 /**
  * useChatStore — Zustand store for AI Veterinary Assistant
  *
- * Persists chat history & questions locally via SQLite (ChatHistoryDao)
- * with strict per-user account isolation.
+ * Implements ChatGPT/Gemini conversation architecture:
+ * - Active thread management with continuous dialogue context
+ * - Multi-conversation list (ChatGPT-style history)
+ * - Real-time persistence to local SQLite & Supabase Cloud
+ * - Strict multi-user isolation
  */
 import { create } from 'zustand';
-import type { ChatMessage } from '@/domain/entities/ChatMessage';
+import * as Crypto from 'expo-crypto';
+import type { ChatConversation, ChatMessage } from '@/domain/entities/ChatMessage';
 import { GeminiAssistantService, type PetContext } from '@/domain/services/GeminiAssistantService';
-import { ChatHistoryDao, type QuestionHistoryItem } from '@/data/local/ChatHistoryDao';
+import { ChatHistoryDao } from '@/data/local/ChatHistoryDao';
 import { ChatRepositorySupabase } from '@/data/repositories/ChatRepositorySupabase';
 
 const chatRepo = new ChatRepositorySupabase();
 
-interface ChatStoreState {
-  currentUserId: string | null;
-  messages: ChatMessage[];
-  questionHistory: QuestionHistoryItem[];
-  isLoading: boolean;
-  apiKey: string;
-  activePetContext: PetContext | null;
-  isChatModalOpen: boolean;
-  isHistoryModalOpen: boolean;
-
-  // Actions
-  setUser: (userId: string | null) => Promise<void>;
-  sendMessage: (text: string) => Promise<void>;
-  clearHistory: () => Promise<void>;
-  setApiKey: (key: string) => void;
-  setActivePetContext: (pet: PetContext | null) => void;
-  openChatModal: () => void;
-  closeChatModal: () => void;
-  toggleChatModal: () => void;
-  openHistoryModal: () => void;
-  closeHistoryModal: () => void;
-  loadPersistedHistory: () => Promise<void>;
-  loadQuestionHistory: () => Promise<void>;
-  deleteQuestion: (id: string) => Promise<void>;
-}
-
-const INITIAL_WELCOME_MESSAGE: ChatMessage = {
+export const INITIAL_WELCOME_MESSAGE: ChatMessage = {
   id: 'msg_welcome',
   sender: 'assistant',
   text: 'Xin chào! Tôi là **PawCare AI Doctor** - Bác sĩ Thú y AI của bạn. 🩺🐾\n\nTôi có thể giải đáp các thắc mắc về sức khỏe, biểu hiện bất thường, khẩu phần dinh dưỡng hoặc lịch tiêm chủng cho thú cưng của bạn. Hãy gửi câu hỏi cho tôi nhé!',
@@ -51,10 +29,42 @@ const INITIAL_WELCOME_MESSAGE: ChatMessage = {
   ],
 };
 
+interface ChatStoreState {
+  currentUserId: string | null;
+  activeConversationId: string | null;
+  activeConversationTitle: string | null;
+  conversations: ChatConversation[];
+  messages: ChatMessage[];
+  isLoading: boolean;
+  apiKey: string;
+  activePetContext: PetContext | null;
+  isChatModalOpen: boolean;
+  isHistoryModalOpen: boolean;
+
+  // Actions
+  setUser: (userId: string | null) => Promise<void>;
+  startNewChat: () => void;
+  selectConversation: (conversationId: string) => Promise<void>;
+  deleteConversation: (conversationId: string) => Promise<void>;
+  clearCurrentConversation: () => Promise<void>;
+  clearHistory: () => Promise<void>;
+  sendMessage: (text: string) => Promise<void>;
+  setApiKey: (key: string) => void;
+  setActivePetContext: (pet: PetContext | null) => void;
+  openChatModal: () => void;
+  closeChatModal: () => void;
+  toggleChatModal: () => void;
+  openHistoryModal: () => void;
+  closeHistoryModal: () => void;
+  loadConversations: () => Promise<void>;
+}
+
 export const useChatStore = create<ChatStoreState>((set, get) => ({
   currentUserId: null,
+  activeConversationId: null,
+  activeConversationTitle: null,
+  conversations: [],
   messages: [INITIAL_WELCOME_MESSAGE],
-  questionHistory: [],
   isLoading: false,
   apiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY || '',
   activePetContext: null,
@@ -65,16 +75,104 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     if (!userId) {
       set({
         currentUserId: null,
+        activeConversationId: null,
+        activeConversationTitle: null,
+        conversations: [],
         messages: [INITIAL_WELCOME_MESSAGE],
-        questionHistory: [],
         activePetContext: null,
       });
       return;
     }
 
     set({ currentUserId: userId });
-    await get().loadPersistedHistory();
-    await get().loadQuestionHistory();
+    await get().loadConversations();
+  },
+
+  startNewChat: () => {
+    set({
+      activeConversationId: null,
+      activeConversationTitle: null,
+      messages: [INITIAL_WELCOME_MESSAGE],
+    });
+  },
+
+  selectConversation: async (conversationId: string) => {
+    try {
+      const convs = get().conversations;
+      const targetConv = convs.find((c) => c.id === conversationId);
+
+      let loadedMessages = await ChatHistoryDao.getConversationMessages(conversationId);
+
+      // If local cache is empty and user is authenticated, query Supabase Cloud
+      if ((!loadedMessages || loadedMessages.length === 0) && get().currentUserId) {
+        loadedMessages = await chatRepo.getConversationMessages(conversationId);
+        // Cache to local SQLite
+        for (const m of loadedMessages) {
+          void ChatHistoryDao.saveMessage(m, conversationId, get().currentUserId || 'anonymous');
+        }
+      }
+
+      set({
+        activeConversationId: conversationId,
+        activeConversationTitle: targetConv?.title || null,
+        messages: loadedMessages.length > 0 ? loadedMessages : [INITIAL_WELCOME_MESSAGE],
+        isHistoryModalOpen: false,
+        isChatModalOpen: true,
+      });
+    } catch (e) {
+      console.warn('[useChatStore] selectConversation error:', e);
+    }
+  },
+
+  deleteConversation: async (conversationId: string) => {
+    try {
+      const uid = get().currentUserId || 'anonymous';
+      await ChatHistoryDao.deleteConversation(conversationId);
+      if (uid !== 'anonymous') {
+        void chatRepo.deleteConversation(conversationId, uid);
+      }
+      if (get().activeConversationId === conversationId) {
+        get().startNewChat();
+      }
+      await get().loadConversations();
+    } catch (e) {
+      console.warn('[useChatStore] deleteConversation error:', e);
+    }
+  },
+
+  clearCurrentConversation: async () => {
+    const activeId = get().activeConversationId;
+    if (activeId) {
+      await get().deleteConversation(activeId);
+    } else {
+      get().startNewChat();
+    }
+  },
+
+  clearHistory: async () => {
+    await get().clearCurrentConversation();
+  },
+
+  loadConversations: async () => {
+    try {
+      const uid = get().currentUserId || 'anonymous';
+      let list = await ChatHistoryDao.getConversations(uid);
+
+      // If SQLite has no conversations and user is signed into Supabase, sync from Cloud
+      if ((!list || list.length === 0) && uid !== 'anonymous') {
+        const cloudList = await chatRepo.getConversations(uid);
+        if (cloudList && cloudList.length > 0) {
+          for (const c of cloudList) {
+            void ChatHistoryDao.upsertConversation(c);
+          }
+          list = cloudList;
+        }
+      }
+
+      set({ conversations: list });
+    } catch (e) {
+      console.warn('[useChatStore] loadConversations error:', e);
+    }
   },
 
   setApiKey: (key: string) => set({ apiKey: key.trim() }),
@@ -83,8 +181,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   openChatModal: () => {
     set({ isChatModalOpen: true });
-    void get().loadPersistedHistory();
-    void get().loadQuestionHistory();
+    void get().loadConversations();
   },
 
   closeChatModal: () => set({ isChatModalOpen: false }),
@@ -93,90 +190,50 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const nextState = !get().isChatModalOpen;
     set({ isChatModalOpen: nextState });
     if (nextState) {
-      void get().loadPersistedHistory();
-      void get().loadQuestionHistory();
+      void get().loadConversations();
     }
   },
 
   openHistoryModal: () => {
     set({ isHistoryModalOpen: true });
-    void get().loadQuestionHistory();
+    void get().loadConversations();
   },
 
   closeHistoryModal: () => set({ isHistoryModalOpen: false }),
-
-  loadPersistedHistory: async () => {
-    try {
-      const uid = get().currentUserId || 'anonymous';
-      if (uid !== 'anonymous') {
-        await ChatHistoryDao.associateAnonymousMessages(uid);
-      }
-      const savedMessages = await ChatHistoryDao.getAllMessages(uid);
-      if (savedMessages && savedMessages.length > 0) {
-        set({ messages: [INITIAL_WELCOME_MESSAGE, ...savedMessages] });
-      } else {
-        // If local SQLite is empty and user is authenticated, sync from Supabase cloud
-        if (uid !== 'anonymous') {
-          const remoteMessages = await chatRepo.getMessages(uid);
-          if (remoteMessages && remoteMessages.length > 0) {
-            for (const rm of remoteMessages) {
-              void ChatHistoryDao.saveMessage(rm, uid);
-            }
-            set({ messages: [INITIAL_WELCOME_MESSAGE, ...remoteMessages] });
-            return;
-          }
-        }
-        set({ messages: [INITIAL_WELCOME_MESSAGE] });
-      }
-    } catch (e) {
-      console.warn('[useChatStore] loadPersistedHistory error:', e);
-    }
-  },
-
-  loadQuestionHistory: async () => {
-    try {
-      const uid = get().currentUserId || 'anonymous';
-      const items = await ChatHistoryDao.getQuestionHistory(uid);
-      set({ questionHistory: items });
-    } catch (e) {
-      console.warn('[useChatStore] loadQuestionHistory error:', e);
-    }
-  },
-
-  deleteQuestion: async (id: string) => {
-    try {
-      const uid = get().currentUserId || 'anonymous';
-      await ChatHistoryDao.deleteQuestion(id);
-      if (uid !== 'anonymous') {
-        void chatRepo.deleteMessage(id, uid);
-      }
-      await get().loadQuestionHistory();
-    } catch (e) {
-      console.warn('[useChatStore] deleteQuestion error:', e);
-    }
-  },
-
-  clearHistory: async () => {
-    try {
-      const uid = get().currentUserId || 'anonymous';
-      await ChatHistoryDao.clearMessages(uid);
-      if (uid !== 'anonymous') {
-        void chatRepo.clearMessages(uid);
-      }
-    } catch (e) {
-      console.warn('[useChatStore] clearHistory error:', e);
-    }
-    set({ messages: [INITIAL_WELCOME_MESSAGE], questionHistory: [] });
-  },
 
   sendMessage: async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || get().isLoading) return;
 
     const uid = get().currentUserId || 'anonymous';
+    let convId = get().activeConversationId;
+    let convTitle = get().activeConversationTitle;
 
+    // If starting a fresh chat, create a new conversation thread
+    if (!convId) {
+      convId = Crypto.randomUUID();
+      convTitle = trimmed.length > 38 ? trimmed.slice(0, 35) + '...' : trimmed;
+      const newConv: ChatConversation = {
+        id: convId,
+        userId: uid,
+        title: convTitle,
+        petName: get().activePetContext?.name,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      set({ activeConversationId: convId, activeConversationTitle: convTitle });
+
+      void ChatHistoryDao.upsertConversation(newConv);
+      if (uid !== 'anonymous') {
+        void chatRepo.upsertConversation(newConv);
+      }
+    }
+
+    const userMsgId = Crypto.randomUUID();
     const userMsg: ChatMessage = {
-      id: `msg_user_${Date.now()}`,
+      id: userMsgId,
+      conversationId: convId,
       sender: 'user',
       text: trimmed,
       timestamp: Date.now(),
@@ -191,37 +248,41 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         : undefined,
     };
 
-    // Save user message to SQLite with user_id & Supabase cloud
-    void ChatHistoryDao.saveMessage(userMsg, uid);
+    // Save user message to SQLite & Supabase
+    void ChatHistoryDao.saveMessage(userMsg, convId, uid);
     if (uid !== 'anonymous') {
-      void chatRepo.saveMessage(userMsg, uid);
+      void chatRepo.saveMessage(userMsg, convId, uid);
     }
 
-    set((state) => ({
-      messages: [...state.messages, userMsg],
+    // Filter out welcome message when adding user prompt to active thread
+    const currentList = get().messages.filter((m) => m.id !== 'msg_welcome');
+    set({
+      messages: [...currentList, userMsg],
       isLoading: true,
-    }));
+    });
 
     try {
       const response = await GeminiAssistantService.consult({
         userQuery: trimmed,
         petContext: get().activePetContext,
-        history: get().messages,
+        history: get().messages, // Continuous dialogue context like ChatGPT
         apiKey: get().apiKey,
       });
 
+      const aiMsgId = Crypto.randomUUID();
       const aiMsg: ChatMessage = {
-        id: `msg_ai_${Date.now()}`,
+        id: aiMsgId,
+        conversationId: convId,
         sender: 'assistant',
         text: response.text,
         timestamp: Date.now(),
         suggestedActions: response.suggestedActions,
       };
 
-      // Save AI response to SQLite with user_id & Supabase cloud
-      void ChatHistoryDao.saveMessage(aiMsg, uid);
+      // Save AI response to SQLite & Supabase
+      void ChatHistoryDao.saveMessage(aiMsg, convId, uid);
       if (uid !== 'anonymous') {
-        void chatRepo.saveMessage(aiMsg, uid);
+        void chatRepo.saveMessage(aiMsg, convId, uid);
       }
 
       set((state) => ({
@@ -229,11 +290,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         isLoading: false,
       }));
 
-      // Refresh question history
-      void get().loadQuestionHistory();
+      // Refresh conversations list to update latest timestamp and previews
+      void get().loadConversations();
     } catch (e) {
       const errMsg: ChatMessage = {
-        id: `msg_err_${Date.now()}`,
+        id: Crypto.randomUUID(),
+        conversationId: convId,
         sender: 'assistant',
         text: `Đã xảy ra lỗi: ${e instanceof Error ? e.message : 'Không thể kết nối tới AI'}. Vui lòng thử lại.`,
         timestamp: Date.now(),

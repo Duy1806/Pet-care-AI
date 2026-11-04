@@ -34,7 +34,6 @@ import { useAppTheme } from '@/presentation/theme';
 import { useChatStore } from '@/presentation/stores/useChatStore';
 import { usePetStore } from '@/presentation/stores/usePetStore';
 import type { ChatMessage } from '@/domain/entities/ChatMessage';
-import type { QuestionHistoryItem } from '@/data/local/ChatHistoryDao';
 
 const BUBBLE_SIZE = 60;
 
@@ -51,11 +50,16 @@ export function FloatingAssistantBubble() {
 
   const {
     messages,
-    questionHistory,
+    conversations,
+    activeConversationId,
+    activeConversationTitle,
     isLoading,
     apiKey,
     sendMessage,
-    clearHistory,
+    startNewChat,
+    selectConversation,
+    deleteConversation,
+    clearCurrentConversation,
     setApiKey,
     setActivePetContext,
     activePetContext,
@@ -65,7 +69,6 @@ export function FloatingAssistantBubble() {
     closeChatModal,
     openHistoryModal,
     closeHistoryModal,
-    deleteQuestion,
   } = useChatStore();
 
   const { pets, selectedPet } = usePetStore();
@@ -169,10 +172,9 @@ export function FloatingAssistantBubble() {
     }
   };
 
-  const handleSelectPastQuestion = (item: QuestionHistoryItem) => {
+  const handleSelectConversation = (convId: string) => {
     void Haptics.selectionAsync();
-    closeHistoryModal();
-    setInputText(item.question);
+    void selectConversation(convId);
   };
 
   const renderMessageItem = useCallback(
@@ -402,33 +404,50 @@ export function FloatingAssistantBubble() {
                 </View>
               </View>
 
-              {/* Right: History & Settings buttons */}
+              {/* Right: New Chat (+), History & Clear */}
               <View style={styles.headerRightActions}>
+                {/* New Chat Button */}
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    startNewChat();
+                  }}
+                  hitSlop={8}
+                  style={[styles.headerIconBtn, { backgroundColor: colors.surfaceElevated }]}
+                  accessibilityLabel="Đoạn chat mới"
+                >
+                  <MaterialCommunityIcons name="plus" size={22} color={colors.primary} />
+                </Pressable>
+
+                {/* History Button */}
                 <Pressable
                   onPress={() => {
                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     openHistoryModal();
                   }}
                   hitSlop={8}
-                  style={[styles.headerIconBtn, { backgroundColor: colors.surfaceElevated }]}
+                  style={[styles.headerIconBtn, { backgroundColor: colors.surfaceElevated, marginLeft: 8 }]}
+                  accessibilityLabel="Lịch sử các đoạn chat"
                 >
                   <MaterialCommunityIcons name="history" size={20} color={colors.primary} />
-                  {questionHistory.length > 0 && (
+                  {conversations.length > 0 && (
                     <View style={[styles.badgeNumber, { backgroundColor: colors.primary }]}>
                       <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '700' }}>
-                        {questionHistory.length > 9 ? '9+' : questionHistory.length}
+                        {conversations.length > 9 ? '9+' : conversations.length}
                       </Text>
                     </View>
                   )}
                 </Pressable>
 
+                {/* Clear current chat */}
                 <Pressable
                   onPress={() => {
                     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                    void clearHistory();
+                    void clearCurrentConversation();
                   }}
                   hitSlop={8}
                   style={[styles.headerIconBtn, { backgroundColor: colors.surfaceElevated, marginLeft: 8 }]}
+                  accessibilityLabel="Xóa đoạn chat này"
                 >
                   <MaterialCommunityIcons name="broom" size={19} color={colors.error} />
                 </Pressable>
@@ -650,7 +669,7 @@ export function FloatingAssistantBubble() {
             </View>
           </KeyboardAvoidingView>
 
-          {/* Question History Modal */}
+          {/* ChatGPT/Gemini-Style Conversation History Modal */}
           <Modal visible={isHistoryModalOpen} transparent animationType="slide" onRequestClose={closeHistoryModal}>
             <View style={styles.historyModalOverlay}>
               <View
@@ -667,7 +686,7 @@ export function FloatingAssistantBubble() {
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <MaterialCommunityIcons name="history" size={22} color={colors.primary} />
                     <Text style={[typo.titleMedium, { color: colors.text, marginLeft: 8, fontWeight: '700' }]}>
-                      Lịch sử câu hỏi đã hỏi
+                      Lịch sử cuộc hội thoại
                     </Text>
                   </View>
                   <Pressable onPress={closeHistoryModal} hitSlop={10}>
@@ -675,62 +694,118 @@ export function FloatingAssistantBubble() {
                   </Pressable>
                 </View>
 
-                <Text style={[typo.caption, { color: colors.textSecondary, marginTop: 4, marginBottom: 12 }]}>
-                  Chạm vào câu hỏi để điền lại vào khung chat và tiếp tục hỏi đáp:
+                {/* New Chat Button at the top of history drawer */}
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    startNewChat();
+                    closeHistoryModal();
+                  }}
+                  style={[
+                    styles.newChatPromptBtn,
+                    {
+                      backgroundColor: colors.primary,
+                      borderRadius: radius.md,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+                  <Text style={[typo.labelLarge, { color: '#FFFFFF', fontWeight: '700', marginLeft: 6 }]}>
+                    Cuộc trò chuyện mới
+                  </Text>
+                </Pressable>
+
+                <Text style={[typo.caption, { color: colors.textSecondary, marginBottom: 10 }]}>
+                  Chọn cuộc hội thoại bên dưới để tiếp tục hỏi đáp như ChatGPT / Gemini:
                 </Text>
 
-                {questionHistory.length === 0 ? (
+                {conversations.length === 0 ? (
                   <View style={styles.emptyHistoryBox}>
                     <MaterialCommunityIcons name="chat-question-outline" size={38} color={colors.textTertiary} />
                     <Text style={[typo.bodyMedium, { color: colors.textTertiary, marginTop: 8 }]}>
-                      Chưa có câu hỏi nào được lưu
+                      Chưa có cuộc hội thoại nào
+                    </Text>
+                    <Text style={[typo.caption, { color: colors.textTertiary, marginTop: 4 }]}>
+                      Các câu hỏi của bạn sẽ được lưu thành các chủ đề tại đây
                     </Text>
                   </View>
                 ) : (
                   <FlatList
-                    data={questionHistory}
+                    data={conversations}
                     keyExtractor={(item) => item.id}
                     style={{ maxHeight: 380 }}
-                    renderItem={({ item }) => (
-                      <View
-                        style={[
-                          styles.historyItemCard,
-                          {
-                            backgroundColor: colors.surfaceElevated,
-                            borderColor: colors.border,
-                          },
-                        ]}
-                      >
-                        <Pressable
-                          style={{ flex: 1 }}
-                          onPress={() => handleSelectPastQuestion(item)}
+                    renderItem={({ item }) => {
+                      const isActive = activeConversationId === item.id;
+                      return (
+                        <View
+                          style={[
+                            styles.historyItemCard,
+                            {
+                              backgroundColor: isActive ? colors.primaryContainer : colors.surfaceElevated,
+                              borderColor: isActive ? colors.primary : colors.border,
+                            },
+                          ]}
                         >
-                          <Text style={[typo.bodyMedium, { color: colors.text, fontWeight: '600' }]} numberOfLines={2}>
-                            {item.question}
-                          </Text>
-                          <View style={styles.historyMetaRow}>
-                            {item.petName && (
-                              <View style={[styles.historyPetTag, { backgroundColor: colors.primaryContainer }]}>
-                                <Text style={[typo.caption, { color: colors.primary, fontWeight: '700' }]}>
-                                  {item.petName}
-                                </Text>
-                              </View>
-                            )}
-                            <Text style={[typo.caption, { color: colors.textTertiary, marginLeft: 6 }]}>
-                              {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{' '}
-                              • {new Date(item.timestamp).toLocaleDateString()}
-                            </Text>
-                          </View>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => void deleteQuestion(item.id)}
-                          hitSlop={10}
-                          style={styles.deleteQuestionBtn}
-                        >
-                          <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.error} />
-                        </Pressable>
-                      </View>
-                    )}
+                          <Pressable
+                            style={{ flex: 1 }}
+                            onPress={() => handleSelectConversation(item.id)}
+                          >
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <MaterialCommunityIcons
+                                name="message-text-outline"
+                                size={18}
+                                color={isActive ? colors.primary : colors.textSecondary}
+                                style={{ marginRight: 6 }}
+                              />
+                              <Text
+                                style={[
+                                  typo.bodyMedium,
+                                  {
+                                    color: isActive ? colors.primary : colors.text,
+                                    fontWeight: '700',
+                                    flex: 1,
+                                  },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {item.title}
+                              </Text>
+                            </View>
+
+                            {item.lastMessage ? (
+                              <Text
+                                style={[typo.caption, { color: colors.textSecondary, marginTop: 4 }]}
+                                numberOfLines={1}
+                              >
+                                {item.lastMessage}
+                              </Text>
+                            ) : null}
+
+                            <View style={styles.historyMetaRow}>
+                              {item.petName && (
+                                <View style={[styles.historyPetTag, { backgroundColor: colors.surface }]}>
+                                  <Text style={[typo.caption, { color: colors.primary, fontWeight: '700' }]}>
+                                    {item.petName}
+                                  </Text>
+                                </View>
+                              )}
+                              <Text style={[typo.caption, { color: colors.textTertiary, marginLeft: 6 }]}>
+                                {new Date(item.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{' '}
+                                • {new Date(item.updatedAt).toLocaleDateString()}
+                              </Text>
+                            </View>
+                          </Pressable>
+
+                          <Pressable
+                            onPress={() => void deleteConversation(item.id)}
+                            hitSlop={10}
+                            style={styles.deleteQuestionBtn}
+                          >
+                            <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.error} />
+                          </Pressable>
+                        </View>
+                      );
+                    }}
                   />
                 )}
               </View>
@@ -1083,6 +1158,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  newChatPromptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
   },
   emptyHistoryBox: {
     alignItems: 'center',

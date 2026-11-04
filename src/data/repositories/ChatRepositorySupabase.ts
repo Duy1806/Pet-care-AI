@@ -1,40 +1,129 @@
 /**
  * PawCare AI — Chat Repository Supabase
  *
- * Persists AI chat conversations and question history to Supabase cloud database
- * with user isolation (RLS) and offline/mock resilience.
+ * Implements ChatGPT/Gemini conversation storage on Supabase Cloud:
+ * - chat_conversations: Thread headers (title, user_id, pet_name, updated_at)
+ * - chat_messages: Itemized questions & answers linked to conversation_id
  */
 import { supabase } from '../remote/supabaseClient';
-import type { ChatMessage } from '@/domain/entities/ChatMessage';
+import type { ChatConversation, ChatMessage } from '@/domain/entities/ChatMessage';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class ChatRepositorySupabase {
   /**
-   * Save a single chat message to Supabase
+   * Save or update a conversation header
    */
-  async saveMessage(msg: ChatMessage, userId: string, sessionId = 'default'): Promise<void> {
-    if (!UUID_REGEX.test(userId)) {
-      // Non-UUID (anonymous/demo), skipped on cloud
+  async upsertConversation(conv: ChatConversation): Promise<void> {
+    if (!UUID_REGEX.test(conv.userId) || !UUID_REGEX.test(conv.id)) return;
+
+    try {
+      const payload = {
+        id: conv.id,
+        user_id: conv.userId,
+        title: conv.title,
+        pet_name: conv.petName ?? null,
+        created_at: new Date(conv.createdAt).toISOString(),
+        updated_at: new Date(conv.updatedAt).toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('chat_conversations')
+        .upsert(payload, { onConflict: 'id' });
+
+      if (error) {
+        console.warn('[ChatRepositorySupabase] upsertConversation error:', error.message);
+      }
+    } catch (err) {
+      console.warn('[ChatRepositorySupabase] upsertConversation failed:', err);
+    }
+  }
+
+  /**
+   * Get all active conversations for a user
+   */
+  async getConversations(userId: string): Promise<ChatConversation[]> {
+    if (!UUID_REGEX.test(userId)) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('chat_conversations')
+        .select('*')
+        .eq('user_id', userId)
+        .is('deleted_at', null)
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        console.warn('[ChatRepositorySupabase] getConversations error:', error.message);
+        return [];
+      }
+
+      if (!data) return [];
+
+      return data.map((r: any) => ({
+        id: r.id,
+        userId: r.user_id,
+        title: r.title,
+        petName: r.pet_name ?? undefined,
+        createdAt: new Date(r.created_at).getTime(),
+        updatedAt: new Date(r.updated_at).getTime(),
+      }));
+    } catch (err) {
+      console.warn('[ChatRepositorySupabase] getConversations failed:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Get all messages in a conversation
+   */
+  async getConversationMessages(conversationId: string): Promise<ChatMessage[]> {
+    if (!UUID_REGEX.test(conversationId)) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.warn('[ChatRepositorySupabase] getConversationMessages error:', error.message);
+        return [];
+      }
+
+      if (!data) return [];
+
+      return data.map((r: any) => ({
+        id: r.id,
+        conversationId: r.conversation_id,
+        sender: r.sender as 'user' | 'assistant',
+        text: r.content,
+        timestamp: new Date(r.created_at).getTime(),
+      }));
+    } catch (err) {
+      console.warn('[ChatRepositorySupabase] getConversationMessages failed:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Save a single message in a conversation
+   */
+  async saveMessage(msg: ChatMessage, conversationId: string, userId: string): Promise<void> {
+    if (!UUID_REGEX.test(userId) || !UUID_REGEX.test(conversationId) || !UUID_REGEX.test(msg.id)) {
       return;
     }
 
     try {
-      const petId = msg.petContext?.petId && UUID_REGEX.test(msg.petContext.petId)
-        ? msg.petContext.petId
-        : null;
-
       const payload = {
         id: msg.id,
+        conversation_id: conversationId,
         user_id: userId,
-        session_id: sessionId,
-        pet_id: petId,
         sender: msg.sender,
-        text: msg.text,
-        pet_context: msg.petContext ?? null,
-        suggested_actions: msg.suggestedActions ?? [],
-        is_error: Boolean(msg.isError),
-        created_at: new Date(msg.timestamp).toISOString(),
+        content: msg.text,
+        created_at: new Date(msg.timestamp || Date.now()).toISOString(),
       };
 
       const { error } = await supabase
@@ -50,75 +139,26 @@ export class ChatRepositorySupabase {
   }
 
   /**
-   * Fetch all messages for a specific user from Supabase
+   * Delete an entire conversation
    */
-  async getMessages(userId: string, sessionId = 'default'): Promise<ChatMessage[]> {
-    if (!UUID_REGEX.test(userId)) {
-      return [];
-    }
+  async deleteConversation(conversationId: string, userId: string): Promise<void> {
+    if (!UUID_REGEX.test(userId) || !UUID_REGEX.test(conversationId)) return;
 
     try {
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('session_id', sessionId)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: true });
+      const now = new Date().toISOString();
+      await supabase
+        .from('chat_conversations')
+        .update({ deleted_at: now })
+        .eq('id', conversationId)
+        .eq('user_id', userId);
 
-      if (error) {
-        console.warn('[ChatRepositorySupabase] getMessages error:', error.message);
-        return [];
-      }
-
-      if (!data) return [];
-
-      return data.map((row: any) => ({
-        id: row.id,
-        sender: row.sender as 'user' | 'assistant',
-        text: row.text,
-        timestamp: new Date(row.created_at).getTime(),
-        petContext: row.pet_context ?? undefined,
-        suggestedActions: Array.isArray(row.suggested_actions) ? row.suggested_actions : undefined,
-        isError: Boolean(row.is_error),
-      }));
-    } catch (err) {
-      console.warn('[ChatRepositorySupabase] getMessages failed:', err);
-      return [];
-    }
-  }
-
-  /**
-   * Delete a single message from Supabase
-   */
-  async deleteMessage(messageId: string, userId: string): Promise<void> {
-    if (!UUID_REGEX.test(userId)) return;
-
-    try {
       await supabase
         .from('chat_messages')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', messageId)
+        .update({ deleted_at: now })
+        .eq('conversation_id', conversationId)
         .eq('user_id', userId);
     } catch (err) {
-      console.warn('[ChatRepositorySupabase] deleteMessage error:', err);
-    }
-  }
-
-  /**
-   * Soft-delete all chat messages for this user/session
-   */
-  async clearMessages(userId: string, sessionId = 'default'): Promise<void> {
-    if (!UUID_REGEX.test(userId)) return;
-
-    try {
-      await supabase
-        .from('chat_messages')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('user_id', userId)
-        .eq('session_id', sessionId);
-    } catch (err) {
-      console.warn('[ChatRepositorySupabase] clearMessages error:', err);
+      console.warn('[ChatRepositorySupabase] deleteConversation error:', err);
     }
   }
 }
