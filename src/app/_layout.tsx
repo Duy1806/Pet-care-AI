@@ -126,13 +126,14 @@ function RootNavigator() {
     };
   }, [incomingUrl, router]);
 
-  // Auth Guard
+  // Auth Guard & Role-based Branching
   useEffect(() => {
     if (!isInitialized) return;
 
     const segs = segments as unknown as string[];
     const inAuthGroup = segs[0] === '(auth)';
     const isForgotPassword = segs.includes('forgot-password');
+    const isAdminRoute = segs[0] === 'admin';
     const isAuthenticated = Boolean(user && session);
 
     // CRITICAL: If the user is on the forgot-password screen, NEVER redirect away!
@@ -143,6 +144,14 @@ function RootNavigator() {
     if (!isAuthenticated && !inAuthGroup) {
       router.replace('/(auth)/welcome' as any);
     } else if (isAuthenticated && inAuthGroup) {
+      // Immediate branching right at login / authentication initialization
+      if (user?.role === 'admin') {
+        router.replace('/admin' as any);
+      } else {
+        router.replace('/(app)' as any);
+      }
+    } else if (isAuthenticated && isAdminRoute && user?.role !== 'admin') {
+      // Strict Security Guard: Standard owners can NEVER access the Admin Portal
       router.replace('/(app)' as any);
     }
   }, [user, session, isInitialized, segments, router]);

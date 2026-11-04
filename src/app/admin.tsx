@@ -43,7 +43,7 @@ type AdminTab = 'overview' | 'users' | 'ai_logs' | 'breeds';
 export default function AdminScreen() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -160,6 +160,25 @@ export default function AdminScreen() {
     return aiLogs.filter((l) => l.isEmergency);
   }, [aiLogs, onlyEmergencyLogs]);
 
+  const handleAdminLogout = () => {
+    Alert.alert(
+      'Đăng xuất Quản trị viên',
+      'Bạn có chắc chắn muốn đăng xuất khỏi phiên làm việc Quản trị viên không?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Đăng xuất',
+          style: 'destructive',
+          onPress: async () => {
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            await logout();
+            router.replace('/(auth)/welcome' as any);
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       {/* Top Admin Header */}
@@ -167,7 +186,11 @@ export default function AdminScreen() {
         <Pressable
           onPress={() => {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.back();
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(app)' as any);
+            }
           }}
           hitSlop={12}
           style={[styles.backBtn, { backgroundColor: colors.surfaceElevated }]}
@@ -175,30 +198,55 @@ export default function AdminScreen() {
           <MaterialCommunityIcons name="arrow-left" size={22} color={colors.text} />
         </Pressable>
 
-        <View style={{ flex: 1, marginLeft: 12 }}>
+        <View style={{ flex: 1, marginLeft: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <MaterialCommunityIcons name="shield-crown" size={20} color="#EAB308" style={{ marginRight: 6 }} />
+            <MaterialCommunityIcons name="shield-crown" size={18} color="#EAB308" style={{ marginRight: 4 }} />
             <Text style={[typo.titleMedium, { color: colors.text, fontWeight: '800' }]}>
               Admin Portal
             </Text>
             <View style={styles.verifiedBadge}>
-              <Text style={{ fontSize: 10, color: '#16A34A', fontWeight: '800' }}>
+              <Text style={{ fontSize: 9, color: '#16A34A', fontWeight: '800' }}>
                 RLS Cloud
               </Text>
             </View>
           </View>
-          <Text style={[typo.caption, { color: colors.textSecondary }]}>
-            Hệ thống Quản trị & Vận hành PawCare AI
+          <Text style={[typo.caption, { color: colors.textSecondary }]} numberOfLines={1}>
+            Quản trị & Vận hành PawCare AI
           </Text>
         </View>
 
-        <Pressable
-          onPress={onRefresh}
-          hitSlop={8}
-          style={[styles.backBtn, { backgroundColor: colors.surfaceElevated }]}
-        >
-          <MaterialCommunityIcons name="refresh" size={20} color={colors.primary} />
-        </Pressable>
+        {/* Action Buttons: App Khách, Làm mới, Đăng xuất */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Pressable
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/(app)' as any);
+            }}
+            hitSlop={6}
+            style={[styles.clientViewBtn, { backgroundColor: colors.primaryContainer }]}
+          >
+            <MaterialCommunityIcons name="cellphone" size={14} color={colors.primary} />
+            <Text style={[typo.labelSmall, { color: colors.primary, fontWeight: '700', marginLeft: 3 }]}>
+              App Khách
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={onRefresh}
+            hitSlop={6}
+            style={[styles.backBtn, { backgroundColor: colors.surfaceElevated }]}
+          >
+            <MaterialCommunityIcons name="refresh" size={18} color={colors.primary} />
+          </Pressable>
+
+          <Pressable
+            onPress={handleAdminLogout}
+            hitSlop={6}
+            style={[styles.backBtn, { backgroundColor: colors.errorContainer }]}
+          >
+            <MaterialCommunityIcons name="logout" size={18} color={colors.error} />
+          </Pressable>
+        </View>
       </View>
 
       {/* 4 Tabs Selector */}
@@ -671,6 +719,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  clientViewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    borderRadius: 14,
+  },
   verifiedBadge: {
     backgroundColor: '#DCFCE7',
     paddingHorizontal: 6,
@@ -832,3 +887,4 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
 });
+

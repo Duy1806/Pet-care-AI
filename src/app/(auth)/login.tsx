@@ -26,6 +26,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { AuthHeader } from '@/presentation/components/AuthHeader';
 import { AppTextField } from '@/presentation/components/AppTextField';
@@ -64,7 +65,12 @@ export default function LoginScreen() {
     async (data: LoginFormData) => {
       const success = await login(data.email, data.password);
       if (success) {
-        router.replace('/(app)' as any);
+        const loggedUser = useAuthStore.getState().user;
+        if (loggedUser?.role === 'admin') {
+          router.replace('/admin' as any);
+        } else {
+          router.replace('/(app)' as any);
+        }
       }
     },
     [login],
@@ -218,6 +224,24 @@ export default function LoginScreen() {
                 </Text>
               </Pressable>
             </Animated.View>
+
+            {/* Phân luồng bảo mật */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: colors.surfaceElevated,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: radius.md,
+                marginBottom: spacing.md,
+              }}
+            >
+              <MaterialCommunityIcons name="shield-check-outline" size={16} color={colors.primary} />
+              <Text style={[typo.caption, { color: colors.textSecondary, marginLeft: 6, flex: 1 }]}>
+                Hệ thống tự động nhận diện và phân luồng Quản trị viên (Admin) & Chủ nuôi (Owner).
+              </Text>
+            </View>
 
             {/* Login button */}
             <Animated.View entering={FadeInDown.delay(400).duration(400)}>
