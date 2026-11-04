@@ -29,6 +29,7 @@ import { ThemeProvider, useAppTheme } from '../presentation/theme';
 import { useAuthStore } from '../presentation/stores/useAuthStore';
 import * as Linking from 'expo-linking';
 import { supabase } from '../data/remote/supabaseClient';
+import { FloatingAssistantBubble } from '../presentation/components/FloatingAssistantBubble';
 
 function parseUrlParams(rawUrl: string): Record<string, string> {
   const params: Record<string, string> = {};
@@ -176,6 +177,7 @@ function RootNavigator() {
           }}
         />
       </Stack>
+      {Boolean(user && session) && <FloatingAssistantBubble />}
     </>
   );
 }

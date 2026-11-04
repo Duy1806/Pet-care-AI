@@ -225,6 +225,13 @@ export default function AssistantScreen() {
         ]}
       >
         <View style={styles.headerTitleRow}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={[styles.headerActionBtn, { backgroundColor: colors.surfaceElevated, marginRight: 8 }]}
+          >
+            <MaterialCommunityIcons name="chevron-left" size={24} color={colors.text} />
+          </Pressable>
           <View style={[styles.headerIconCircle, { backgroundColor: colors.primaryContainer }]}>
             <MaterialCommunityIcons name="robot-happy-outline" size={24} color={colors.primary} />
           </View>

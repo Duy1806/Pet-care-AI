@@ -30,6 +30,7 @@ import { useAuthStore } from '@/presentation/stores/useAuthStore';
 import { usePetStore } from '@/presentation/stores/usePetStore';
 import { useVaccinationStore } from '@/presentation/stores/useVaccinationStore';
 import { useCareScheduleStore } from '@/presentation/stores/useCareScheduleStore';
+import { useChatStore } from '@/presentation/stores/useChatStore';
 import { ThemeToggle } from '@/presentation/components/ThemeToggle';
 import { NetworkBanner } from '@/presentation/components/NetworkBanner';
 import { AddPetModal } from '@/presentation/components/AddPetModal';
@@ -471,7 +472,7 @@ export default function HomeScreen() {
           <Pressable
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              router.push('/(app)/assistant' as any);
+              useChatStore.getState().openChatModal();
             }}
             style={[
               styles.aiDoctorBanner,

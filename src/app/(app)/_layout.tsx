@@ -77,17 +77,11 @@ export default function AppLayout() {
         }}
       />
 
+      {/* Trợ lý AI đã được chuyển thành Bong bóng chat nổi (Floating Chat Bubble) xuất hiện ở mọi trang */}
       <Tabs.Screen
         name="assistant"
         options={{
-          title: 'Trợ lý AI',
-          tabBarIcon: ({ color, focused }) => (
-            <MaterialCommunityIcons
-              name={focused ? 'robot-happy' : 'robot-happy-outline'}
-              size={24}
-              color={color as string}
-            />
-          ),
+          href: null,
         }}
       />
 

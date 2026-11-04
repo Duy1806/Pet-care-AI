@@ -10,12 +10,16 @@ interface ChatStoreState {
   isLoading: boolean;
   apiKey: string;
   activePetContext: PetContext | null;
+  isChatModalOpen: boolean;
 
   // Actions
   sendMessage: (text: string) => Promise<void>;
   clearHistory: () => void;
   setApiKey: (key: string) => void;
   setActivePetContext: (pet: PetContext | null) => void;
+  openChatModal: () => void;
+  closeChatModal: () => void;
+  toggleChatModal: () => void;
 }
 
 const INITIAL_WELCOME_MESSAGE: ChatMessage = {
@@ -36,10 +40,15 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   isLoading: false,
   apiKey: process.env.EXPO_PUBLIC_GEMINI_API_KEY || '',
   activePetContext: null,
+  isChatModalOpen: false,
 
   setApiKey: (key: string) => set({ apiKey: key.trim() }),
 
   setActivePetContext: (pet: PetContext | null) => set({ activePetContext: pet }),
+
+  openChatModal: () => set({ isChatModalOpen: true }),
+  closeChatModal: () => set({ isChatModalOpen: false }),
+  toggleChatModal: () => set((state) => ({ isChatModalOpen: !state.isChatModalOpen })),
 
   clearHistory: () => set({ messages: [INITIAL_WELCOME_MESSAGE] }),
 
