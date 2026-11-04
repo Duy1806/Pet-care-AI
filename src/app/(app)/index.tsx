@@ -650,9 +650,9 @@ export default function HomeScreen() {
         {/* Section 3: Today's Care Reminders Checklist */}
         <View style={{ marginTop: spacing.lg, paddingHorizontal: spacing.lg }}>
           <View style={styles.sectionHeaderRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={[typo.titleMedium, { color: colors.text }]}>
-                Lịch chăm sóc hôm nay
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
+              <Text style={[typo.titleMedium, { color: colors.text }]} numberOfLines={1}>
+                Lịch chăm sóc
               </Text>
               {activePet && (
                 <View
@@ -663,36 +663,34 @@ export default function HomeScreen() {
                     borderRadius: 12,
                   }}
                 >
-                  <Text style={[typo.labelSmall, { color: colors.primary, fontWeight: '700' }]}>
+                  <Text style={[typo.labelSmall, { color: colors.primary, fontWeight: '700' }]} numberOfLines={1}>
                     {activePet.name}
                   </Text>
                 </View>
               )}
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {/* Lịch sử chăm sóc */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {/* Lịch sử chăm sóc (Icon only để chống tràn) */}
               <Pressable
                 onPress={() => {
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   openCareHistoryModal();
                 }}
+                hitSlop={8}
+                accessibilityLabel="Lịch sử chăm sóc"
                 style={{
-                  flexDirection: 'row',
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
                   alignItems: 'center',
+                  justifyContent: 'center',
                   backgroundColor: colors.surfaceElevated,
                   borderColor: colors.border,
                   borderWidth: 1,
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: radius.full,
-                  gap: 4,
                 }}
               >
-                <MaterialCommunityIcons name="calendar-clock" size={16} color={colors.primary} />
-                <Text style={[typo.labelSmall, { color: colors.primary, fontWeight: '700' }]}>
-                  Lịch sử
-                </Text>
+                <MaterialCommunityIcons name="calendar-clock" size={18} color={colors.primary} />
               </Pressable>
 
               <Pressable
@@ -704,10 +702,10 @@ export default function HomeScreen() {
                   flexDirection: 'row',
                   alignItems: 'center',
                   backgroundColor: colors.primary,
-                  paddingHorizontal: 12,
+                  paddingHorizontal: 10,
                   paddingVertical: 6,
                   borderRadius: radius.full,
-                  gap: 4,
+                  gap: 3,
                 }}
               >
                 <MaterialCommunityIcons name="plus" size={16} color={colors.onPrimary} />
