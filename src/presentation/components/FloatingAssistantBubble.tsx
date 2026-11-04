@@ -8,7 +8,9 @@
  * - Slides open full interactive AI Veterinary Consultation Modal
  * - Seamless pet context injection (Milo, Luna, etc.)
  * - Suggested action chips & quick veterinary questions
- * - Minimize / Close button to return to the active screen instantly
+ * - Question History Drawer / Modal (Lưu trữ và xem lại các câu hỏi đã hỏi)
+ * - Safe Area insets fix for iPhone home bar & Android navigation
+ * - Persistent chat message storage via SQLite (pawcare.db)
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -26,7 +28,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -35,17 +37,17 @@ import { useAppTheme } from '@/presentation/theme';
 import { useChatStore } from '@/presentation/stores/useChatStore';
 import { usePetStore } from '@/presentation/stores/usePetStore';
 import type { ChatMessage } from '@/domain/entities/ChatMessage';
+import type { QuestionHistoryItem } from '@/data/local/ChatHistoryDao';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BUBBLE_SIZE = 60;
 
 export function FloatingAssistantBubble() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
-  const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
 
   const {
     messages,
+    questionHistory,
     isLoading,
     apiKey,
     sendMessage,
@@ -54,8 +56,12 @@ export function FloatingAssistantBubble() {
     setActivePetContext,
     activePetContext,
     isChatModalOpen,
+    isHistoryModalOpen,
     openChatModal,
     closeChatModal,
+    openHistoryModal,
+    closeHistoryModal,
+    deleteQuestion,
   } = useChatStore();
 
   const { pets, selectedPet } = usePetStore();
@@ -86,7 +92,6 @@ export function FloatingAssistantBubble() {
       },
       onPanResponderRelease: () => {
         pan.flattenOffset();
-        // If not dragged significantly, treat as tap
         if (!isDragging.current) {
           void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           openChatModal();
@@ -156,6 +161,12 @@ export function FloatingAssistantBubble() {
     } else {
       void handleSend(action);
     }
+  };
+
+  const handleSelectPastQuestion = (item: QuestionHistoryItem) => {
+    void Haptics.selectionAsync();
+    closeHistoryModal();
+    setInputText(item.question);
   };
 
   const renderMessageItem = useCallback(
@@ -285,14 +296,14 @@ export function FloatingAssistantBubble() {
         </View>
       </Animated.View>
 
-      {/* AI Assistant Chat Modal */}
+      {/* AI Assistant Chat Modal with Safe Area View */}
       <Modal
         visible={isChatModalOpen}
         animationType="slide"
-        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
+        presentationStyle="fullScreen"
         onRequestClose={closeChatModal}
       >
-        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+        <SafeAreaView style={[styles.modalSafeArea, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
           {/* Top Header */}
           <View
             style={[
@@ -300,7 +311,6 @@ export function FloatingAssistantBubble() {
               {
                 backgroundColor: colors.surface,
                 borderBottomColor: colors.border,
-                paddingTop: insets.top + (Platform.OS === 'ios' ? spacing.xs : spacing.sm),
               },
             ]}
           >
@@ -324,7 +334,7 @@ export function FloatingAssistantBubble() {
               <View style={{ flex: 1, marginLeft: spacing.sm }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Text style={[typo.titleMedium, { color: colors.text, fontWeight: '700' }]}>
-                    Bác sĩ Thú y AI
+                    {'Bác sĩ Thú y AI'}
                   </Text>
                   <View style={[styles.onlineBadge, { backgroundColor: '#DCFCE7' }]}>
                     <Text style={{ fontSize: 10, color: '#16A34A', fontWeight: '700' }}>
@@ -337,11 +347,29 @@ export function FloatingAssistantBubble() {
                 </Text>
               </View>
 
-              {/* Action buttons */}
+              {/* Action buttons: Question History, API Key, Clear History */}
+              <Pressable
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  openHistoryModal();
+                }}
+                hitSlop={8}
+                style={[styles.headerBtn, { backgroundColor: colors.surfaceElevated }]}
+              >
+                <MaterialCommunityIcons name="history" size={20} color={colors.primary} />
+                {questionHistory.length > 0 && (
+                  <View style={[styles.badgeNumber, { backgroundColor: colors.primary }]}>
+                    <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '700' }}>
+                      {questionHistory.length > 9 ? '9+' : questionHistory.length}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+
               <Pressable
                 onPress={() => setShowConfigModal(true)}
                 hitSlop={8}
-                style={[styles.headerBtn, { backgroundColor: colors.surfaceElevated }]}
+                style={[styles.headerBtn, { backgroundColor: colors.surfaceElevated, marginLeft: 8 }]}
               >
                 <MaterialCommunityIcons name="key-variant" size={18} color={colors.textSecondary} />
               </Pressable>
@@ -349,7 +377,7 @@ export function FloatingAssistantBubble() {
               <Pressable
                 onPress={() => {
                   void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                  clearHistory();
+                  void clearHistory();
                 }}
                 hitSlop={8}
                 style={[styles.headerBtn, { backgroundColor: colors.surfaceElevated, marginLeft: 8 }]}
@@ -419,10 +447,7 @@ export function FloatingAssistantBubble() {
             data={messages}
             keyExtractor={(item) => item.id}
             renderItem={renderMessageItem}
-            contentContainerStyle={[
-              styles.messageList,
-              { paddingBottom: insets.bottom + 90 },
-            ]}
+            contentContainerStyle={styles.messageList}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
             ListFooterComponent={
               isLoading ? (
@@ -436,16 +461,16 @@ export function FloatingAssistantBubble() {
             }
           />
 
-          {/* Floating Bottom Input Bar */}
+          {/* Floating Bottom Input Bar with Safe Area Spacing */}
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
             style={[
               styles.inputContainer,
               {
                 backgroundColor: colors.surface,
                 borderTopColor: colors.border,
-                paddingBottom: insets.bottom > 0 ? insets.bottom : spacing.sm,
+                paddingBottom: Platform.OS === 'ios' ? 16 : 10,
               },
             ]}
           >
@@ -496,6 +521,93 @@ export function FloatingAssistantBubble() {
               </Pressable>
             </View>
           </KeyboardAvoidingView>
+
+          {/* Question History Modal (Lịch sử các câu hỏi đã hỏi) */}
+          <Modal visible={isHistoryModalOpen} transparent animationType="slide" onRequestClose={closeHistoryModal}>
+            <View style={styles.historyModalOverlay}>
+              <View
+                style={[
+                  styles.historyModalCard,
+                  {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderRadius: radius.xl,
+                  },
+                ]}
+              >
+                <View style={styles.historyHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <MaterialCommunityIcons name="history" size={24} color={colors.primary} />
+                    <Text style={[typo.titleMedium, { color: colors.text, marginLeft: 8, fontWeight: '700' }]}>
+                      Lịch sử câu hỏi đã hỏi
+                    </Text>
+                  </View>
+                  <Pressable onPress={closeHistoryModal} hitSlop={10}>
+                    <MaterialCommunityIcons name="close" size={22} color={colors.textSecondary} />
+                  </Pressable>
+                </View>
+
+                <Text style={[typo.caption, { color: colors.textSecondary, marginTop: 4, marginBottom: 12 }]}>
+                  Chạm vào câu hỏi để điền lại vào khung chat và tiếp tục hỏi đáp:
+                </Text>
+
+                {questionHistory.length === 0 ? (
+                  <View style={styles.emptyHistoryBox}>
+                    <MaterialCommunityIcons name="chat-question-outline" size={40} color={colors.textTertiary} />
+                    <Text style={[typo.bodyMedium, { color: colors.textTertiary, marginTop: 8 }]}>
+                      Chưa có câu hỏi nào được lưu
+                    </Text>
+                  </View>
+                ) : (
+                  <FlatList
+                    data={questionHistory}
+                    keyExtractor={(item) => item.id}
+                    style={{ maxHeight: 380 }}
+                    renderItem={({ item }) => (
+                      <View
+                        style={[
+                          styles.historyItemCard,
+                          {
+                            backgroundColor: colors.surfaceElevated,
+                            borderColor: colors.border,
+                          },
+                        ]}
+                      >
+                        <Pressable
+                          style={{ flex: 1 }}
+                          onPress={() => handleSelectPastQuestion(item)}
+                        >
+                          <Text style={[typo.bodyMedium, { color: colors.text, fontWeight: '600' }]} numberOfLines={2}>
+                            {item.question}
+                          </Text>
+                          <View style={styles.historyMetaRow}>
+                            {item.petName && (
+                              <View style={[styles.historyPetTag, { backgroundColor: colors.primaryContainer }]}>
+                                <Text style={[typo.caption, { color: colors.primary, fontWeight: '700' }]}>
+                                  {item.petName}
+                                </Text>
+                              </View>
+                            )}
+                            <Text style={[typo.caption, { color: colors.textTertiary, marginLeft: 6 }]}>
+                              {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{' '}
+                              • {new Date(item.timestamp).toLocaleDateString()}
+                            </Text>
+                          </View>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => void deleteQuestion(item.id)}
+                          hitSlop={10}
+                          style={styles.deleteQuestionBtn}
+                        >
+                          <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.error} />
+                        </Pressable>
+                      </View>
+                    )}
+                  />
+                )}
+              </View>
+            </View>
+          </Modal>
 
           {/* API Key Configuration Modal */}
           <Modal visible={showConfigModal} transparent animationType="fade">
@@ -557,7 +669,7 @@ export function FloatingAssistantBubble() {
               </View>
             </View>
           </Modal>
-        </View>
+        </SafeAreaView>
       </Modal>
     </>
   );
@@ -595,12 +707,12 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#22C55E',
   },
-  modalContainer: {
+  modalSafeArea: {
     flex: 1,
   },
   header: {
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
   },
   headerTitleRow: {
@@ -633,6 +745,18 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+  },
+  badgeNumber: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
   },
   petSelectorContainer: {
     marginTop: 10,
@@ -649,6 +773,7 @@ const styles = StyleSheet.create({
   messageList: {
     paddingHorizontal: 16,
     paddingTop: 16,
+    paddingBottom: 24,
   },
   messageRow: {
     flexDirection: 'row',
@@ -736,6 +861,50 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 8,
+  },
+  historyModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'flex-end',
+  },
+  historyModalCard: {
+    maxHeight: '80%',
+    padding: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  emptyHistoryBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  historyItemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  historyMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  historyPetTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  deleteQuestionBtn: {
+    padding: 6,
     marginLeft: 8,
   },
   configModalOverlay: {
