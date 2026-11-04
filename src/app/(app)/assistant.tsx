@@ -246,22 +246,21 @@ export default function AssistantScreen() {
 
           {/* Action buttons */}
           <Pressable
-            onPress={() => {
-              setTempApiKey(apiKey);
-              setShowConfigModal(true);
-            }}
+            onPress={() => setShowConfigModal(true)}
             hitSlop={8}
             style={[styles.headerActionBtn, { backgroundColor: colors.surfaceElevated }]}
+            accessibilityLabel="Thông tin Bác sĩ AI"
           >
-            <MaterialCommunityIcons name="key-outline" size={20} color={colors.textSecondary} />
+            <MaterialCommunityIcons name="information-outline" size={20} color={colors.textSecondary} />
           </Pressable>
 
           <Pressable
             onPress={clearHistory}
             hitSlop={8}
             style={[styles.headerActionBtn, { backgroundColor: colors.surfaceElevated, marginLeft: 6 }]}
+            accessibilityLabel="Làm mới đoạn chat"
           >
-            <MaterialCommunityIcons name="delete-outline" size={20} color={colors.textSecondary} />
+            <MaterialCommunityIcons name="refresh" size={20} color={colors.textSecondary} />
           </Pressable>
         </View>
 
@@ -406,54 +405,45 @@ export default function AssistantScreen() {
             ]}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm }}>
-              <MaterialCommunityIcons name="google" size={24} color={colors.primary} />
+              <MaterialCommunityIcons name="robot-happy-outline" size={26} color={colors.primary} />
               <Text style={[typo.titleLarge, { color: colors.text, fontWeight: '700', marginLeft: 8 }]}>
-                Cấu hình Google Gemini AI
+                Bác sĩ Thú y AI (PawCare)
               </Text>
             </View>
 
-            <Text style={[typo.bodySmall, { color: colors.textSecondary, marginBottom: spacing.md }]}>
-              Tính năng Generative AI sử dụng mô hình Google Gemini 1.5 Flash để tư vấn y khoa thú y chuẩn xác theo thời gian thực.
+            <View style={{ backgroundColor: '#DCFCE7', borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.md, flexDirection: 'row', alignItems: 'center' }}>
+              <MaterialCommunityIcons name="check-circle" size={18} color="#16A34A" />
+              <Text style={[typo.labelMedium, { color: '#16A34A', marginLeft: 6, fontWeight: '700' }]}>
+                Google Gemini AI đã được tích hợp sẵn
+              </Text>
+            </View>
+
+            <Text style={[typo.bodySmall, { color: colors.text, lineHeight: 20, marginBottom: spacing.md }]}>
+              Tính năng Generative AI sử dụng mô hình Google Gemini AI thế hệ mới để tư vấn chăm sóc sức khỏe, sơ cứu, phân tích hành vi và đề xuất dinh dưỡng thú y theo thời gian thực.
             </Text>
 
-            <Text style={[typo.labelMedium, { color: colors.text, marginBottom: spacing.xs }]}>
-              Gemini API Key:
-            </Text>
-            <TextInput
-              value={tempApiKey}
-              onChangeText={setTempApiKey}
-              placeholder="Dán mã AIzaSy... vào đây"
-              placeholderTextColor={colors.textTertiary}
-              style={[
-                styles.keyInput,
-                {
-                  backgroundColor: colors.surfaceElevated,
-                  borderColor: colors.border,
-                  borderRadius: radius.md,
-                  color: colors.text,
-                },
-              ]}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+            <View style={{ backgroundColor: colors.surfaceElevated, borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.md, gap: 6 }}>
+              <Text style={[typo.labelSmall, { color: colors.text, fontWeight: '700' }]}>
+                ✨ Các tính năng nổi bật:
+              </Text>
+              <Text style={[typo.caption, { color: colors.textSecondary }]}>
+                • Tự động gắn thông tin thú cưng (tên, giống, cân nặng) vào câu trả lời.
+              </Text>
+              <Text style={[typo.caption, { color: colors.textSecondary }]}>
+                • Đề xuất phác đồ tiêm chủng và khẩu phần ăn chính xác.
+              </Text>
+              <Text style={[typo.caption, { color: colors.textSecondary }]}>
+                • Nhận diện các triệu chứng nguy cấp cần đưa đi viện thú y.
+              </Text>
+            </View>
 
-            <Text style={[typo.caption, { color: colors.textTertiary, marginTop: 4, marginBottom: spacing.lg }]}>
-              💡 Mẹo: Bạn có thể lấy API Key miễn phí từ Google AI Studio (ai.google.dev). Nếu để trống, app sẽ kích hoạt bộ tri thức thú y offline tích hợp sẵn.
-            </Text>
-
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
               <Pressable
                 onPress={() => setShowConfigModal(false)}
-                style={[styles.modalBtn, { backgroundColor: colors.surfaceElevated, borderRadius: radius.md }]}
-              >
-                <Text style={[typo.labelMedium, { color: colors.text }]}>Đóng</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleSaveApiKey}
                 style={[styles.modalBtn, { backgroundColor: colors.primary, borderRadius: radius.md }]}
               >
                 <Text style={[typo.labelMedium, { color: colors.onPrimary, fontWeight: '700' }]}>
-                  Lưu cấu hình
+                  Đã hiểu
                 </Text>
               </Pressable>
             </View>

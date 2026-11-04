@@ -46,3 +46,4 @@ describe('GeminiAssistantService', () => {
     expect(result.suggestedActions).toBeDefined();
   });
 });
+

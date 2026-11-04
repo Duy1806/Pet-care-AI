@@ -16,3 +16,4 @@ export interface ChatMessage {
   suggestedActions?: string[];
   isError?: boolean;
 }
+

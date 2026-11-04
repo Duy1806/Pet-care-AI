@@ -57,7 +57,7 @@ export class GeminiAssistantService {
     }
 
     try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      const primaryEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
       // Build context string from pet profile
       let petContextStr = '';
@@ -104,11 +104,21 @@ export class GeminiAssistantService {
         },
       };
 
-      const response = await fetch(endpoint, {
+      let response = await fetch(primaryEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
       });
+
+      // If primary model has temporary spike (503), gracefully switch to flash-lite
+      if (!response.ok && (response.status === 503 || response.status === 404)) {
+        const liteEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`;
+        response = await fetch(liteEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
+      }
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
@@ -224,3 +234,4 @@ export class GeminiAssistantService {
     };
   }
 }
+
