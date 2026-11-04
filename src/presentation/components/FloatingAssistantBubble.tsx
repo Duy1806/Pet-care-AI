@@ -1,17 +1,12 @@
 /**
  * PawCare AI — Floating AI Veterinary Assistant Bubble
  *
- * A persistent, draggable floating chat head (bubble) that appears on all screens.
- * Features:
- * - Floating bubble with cute AI robot icon & active online indicator
- * - Smooth drag-and-drop / PanResponder positioning
- * - Slides open full interactive AI Veterinary Consultation Modal
- * - Seamless pet context injection (Milo, Luna, etc.)
- * - Suggested action chips & quick veterinary questions
- * - Question History Drawer / Modal (Lưu trữ và xem lại các câu hỏi đã hỏi)
- * - Calibrated top & bottom safe insets (No clipping with Dynamic Island / Home Indicator)
- * - Rounded capsule input bar lifted up with plenty of breathing room
- * - Persistent chat message storage via SQLite (pawcare.db)
+ * Professional AI Chatbox interface modeled after modern LLM assistants (ChatGPT / Claude):
+ * - Balanced, symmetric top app bar safely clear of Dynamic Island & Status Bar
+ * - Soft horizontal pet filter chips (Miu, Nâu, Tất cả)
+ * - Elevated capsule/pill input bar with upward send icon and generous home indicator clearance
+ * - Persistent question history drawer via SQLite (pawcare.db)
+ * - Draggable floating bubble on all screens with smooth haptic feedback
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -42,9 +37,11 @@ import type { QuestionHistoryItem } from '@/data/local/ChatHistoryDao';
 
 const BUBBLE_SIZE = 60;
 
-// Device-calibrated safe insets for Modal windows
-const MODAL_TOP_PADDING = Platform.OS === 'ios' ? 58 : (RNStatusBar.currentHeight || 24) + 12;
-const MODAL_BOTTOM_PADDING = Platform.OS === 'ios' ? 44 : 22;
+// Dynamic Island (iPhone 14 Pro/15/16) extends to 54pt.
+// We start the header at 62pt to guarantee 0% overlap with status bar icons.
+const HEADER_TOP_PADDING = Platform.OS === 'ios' ? 62 : (RNStatusBar.currentHeight || 24) + 14;
+// iPhone Home Indicator clearance
+const INPUT_BOTTOM_PADDING = Platform.OS === 'ios' ? 36 : 18;
 
 export function FloatingAssistantBubble() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
@@ -75,7 +72,7 @@ export function FloatingAssistantBubble() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [tempApiKey, setTempApiKey] = useState(apiKey);
 
-  // Initial position: Bottom right above the navigation tab bar
+  // Position for the floating bubble
   const defaultBottom = Platform.OS === 'ios' ? 95 : 80;
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const isDragging = useRef(false);
@@ -206,7 +203,7 @@ export function FloatingAssistantBubble() {
                   color={colors.primary}
                 />
                 <Text style={[typo.caption, { color: colors.primary, marginLeft: 4, fontWeight: '700' }]}>
-                  Dành cho: {item.petContext.petName}
+                  Dành cho {item.petContext.petName}
                 </Text>
               </View>
             )}
@@ -224,7 +221,7 @@ export function FloatingAssistantBubble() {
                         borderColor: item.isError ? colors.error : colors.border,
                       },
                     ],
-                { borderRadius: radius.lg },
+                { borderRadius: 18 },
               ]}
             >
               <Text
@@ -252,8 +249,8 @@ export function FloatingAssistantBubble() {
                       styles.suggestionChip,
                       {
                         backgroundColor: colors.surfaceElevated,
-                        borderColor: colors.primary,
-                        borderRadius: radius.full,
+                        borderColor: colors.border,
+                        borderRadius: 20,
                       },
                     ]}
                   >
@@ -268,12 +265,12 @@ export function FloatingAssistantBubble() {
         </View>
       );
     },
-    [colors, typo, radius]
+    [colors, typo]
   );
 
   return (
     <>
-      {/* Floating Draggable Bubble */}
+      {/* Floating Draggable Bubble Button */}
       <Animated.View
         style={[
           styles.floatingContainer,
@@ -293,8 +290,7 @@ export function FloatingAssistantBubble() {
             },
           ]}
         >
-          <MaterialCommunityIcons name="robot-happy" size={32} color="#FFFFFF" />
-          {/* Active Status Badge */}
+          <MaterialCommunityIcons name="robot-happy" size={30} color="#FFFFFF" />
           <View style={styles.statusBadge}>
             <View style={styles.statusDot} />
           </View>
@@ -309,95 +305,88 @@ export function FloatingAssistantBubble() {
         onRequestClose={closeChatModal}
       >
         <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          {/* Top Header with safe inset from Dynamic Island / Status Bar */}
+          {/* Top Header — Clean, symmetric and clearly below status bar */}
           <View
             style={[
               styles.header,
               {
                 backgroundColor: colors.surface,
                 borderBottomColor: colors.border,
-                paddingTop: MODAL_TOP_PADDING,
+                paddingTop: HEADER_TOP_PADDING,
               },
             ]}
           >
             <View style={styles.headerTitleRow}>
-              {/* Minimize / Close Button */}
+              {/* Left: Dismiss Button */}
               <Pressable
                 onPress={() => {
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   closeChatModal();
                 }}
                 hitSlop={12}
-                style={[styles.closeIconCircle, { backgroundColor: colors.surfaceElevated }]}
+                style={[styles.headerIconBtn, { backgroundColor: colors.surfaceElevated }]}
               >
-                <MaterialCommunityIcons name="chevron-down" size={26} color={colors.text} />
+                <MaterialCommunityIcons name="chevron-down" size={24} color={colors.text} />
               </Pressable>
 
-              <View style={[styles.headerIconCircle, { backgroundColor: colors.primaryContainer, marginLeft: 8 }]}>
-                <MaterialCommunityIcons name="robot-happy-outline" size={24} color={colors.primary} />
-              </View>
-
-              <View style={{ flex: 1, marginLeft: spacing.sm }}>
+              {/* Center: Title & Online Status */}
+              <View style={styles.headerCenter}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={[typo.titleMedium, { color: colors.text, fontWeight: '700' }]}>
-                    {'Bác sĩ '}
-                    <Text style={{ color: colors.primary }}>{'Thú y AI'}</Text>
+                  <Text style={[typo.titleMedium, { color: colors.text, fontWeight: '700', fontSize: 16 }]}>
+                    Bác sĩ Thú y AI
                   </Text>
-                  <View style={[styles.onlineBadge, { backgroundColor: '#DCFCE7' }]}>
-                    <Text style={{ fontSize: 10, color: '#16A34A', fontWeight: '700' }}>
-                      Gemini LLM
+                  <View style={styles.geminiBadge}>
+                    <Text style={{ fontSize: 9, color: '#16A34A', fontWeight: '800' }}>
+                      Gemini
                     </Text>
                   </View>
                 </View>
-                <Text style={[typo.caption, { color: colors.textSecondary }]}>
-                  Hỗ trợ 24/7 • Bấm ▼ để thu nhỏ
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                  <View style={styles.greenPulseDot} />
+                  <Text style={[typo.caption, { color: colors.textSecondary, fontSize: 11, marginLeft: 4 }]}>
+                    Trực tuyến 24/7 • Hỗ trợ lâm sàng
+                  </Text>
+                </View>
               </View>
 
-              {/* Action buttons: Question History, API Key, Clear History */}
-              <Pressable
-                onPress={() => {
-                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  openHistoryModal();
-                }}
-                hitSlop={8}
-                style={[styles.headerBtn, { backgroundColor: colors.surfaceElevated }]}
-              >
-                <MaterialCommunityIcons name="history" size={20} color={colors.primary} />
-                {questionHistory.length > 0 && (
-                  <View style={[styles.badgeNumber, { backgroundColor: colors.primary }]}>
-                    <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '700' }}>
-                      {questionHistory.length > 9 ? '9+' : questionHistory.length}
-                    </Text>
-                  </View>
-                )}
-              </Pressable>
+              {/* Right: History & Settings buttons */}
+              <View style={styles.headerRightActions}>
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    openHistoryModal();
+                  }}
+                  hitSlop={8}
+                  style={[styles.headerIconBtn, { backgroundColor: colors.surfaceElevated }]}
+                >
+                  <MaterialCommunityIcons name="history" size={20} color={colors.primary} />
+                  {questionHistory.length > 0 && (
+                    <View style={[styles.badgeNumber, { backgroundColor: colors.primary }]}>
+                      <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '700' }}>
+                        {questionHistory.length > 9 ? '9+' : questionHistory.length}
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
 
-              <Pressable
-                onPress={() => setShowConfigModal(true)}
-                hitSlop={8}
-                style={[styles.headerBtn, { backgroundColor: colors.surfaceElevated, marginLeft: 8 }]}
-              >
-                <MaterialCommunityIcons name="key-variant" size={18} color={colors.textSecondary} />
-              </Pressable>
-
-              <Pressable
-                onPress={() => {
-                  void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                  void clearHistory();
-                }}
-                hitSlop={8}
-                style={[styles.headerBtn, { backgroundColor: colors.surfaceElevated, marginLeft: 8 }]}
-              >
-                <MaterialCommunityIcons name="delete-sweep-outline" size={18} color={colors.error} />
-              </Pressable>
+                <Pressable
+                  onPress={() => {
+                    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                    void clearHistory();
+                  }}
+                  hitSlop={8}
+                  style={[styles.headerIconBtn, { backgroundColor: colors.surfaceElevated, marginLeft: 8 }]}
+                >
+                  <MaterialCommunityIcons name="broom" size={19} color={colors.error} />
+                </Pressable>
+              </View>
             </View>
 
             {/* Pet Context Selector */}
             {pets.length > 0 && (
               <View style={styles.petSelectorContainer}>
-                <Text style={[typo.caption, { color: colors.textSecondary, marginBottom: 6 }]}>
-                  Tư vấn chuyên sâu theo hồ sơ của:
+                <Text style={[typo.caption, { color: colors.textSecondary, marginBottom: 6, fontSize: 11 }]}>
+                  Hồ sơ tư vấn:
                 </Text>
                 <FlatList
                   horizontal
@@ -435,6 +424,7 @@ export function FloatingAssistantBubble() {
                             {
                               color: isSelected ? colors.primary : colors.text,
                               fontWeight: isSelected ? '700' : '500',
+                              fontSize: 12,
                             },
                           ]}
                         >
@@ -468,7 +458,7 @@ export function FloatingAssistantBubble() {
             }
           />
 
-          {/* Floating Bottom Input Bar — Rounded capsule pill & lifted with breathing room */}
+          {/* Bottom Input Area — Professional Capsule Floating Bar */}
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
@@ -477,13 +467,13 @@ export function FloatingAssistantBubble() {
               {
                 backgroundColor: colors.surface,
                 borderTopColor: colors.border,
-                paddingBottom: MODAL_BOTTOM_PADDING,
+                paddingBottom: INPUT_BOTTOM_PADDING,
               },
             ]}
           >
             <View
               style={[
-                styles.inputRow,
+                styles.capsuleInputRow,
                 {
                   backgroundColor: colors.surfaceElevated,
                   borderColor: colors.border,
@@ -495,8 +485,8 @@ export function FloatingAssistantBubble() {
                 onChangeText={setInputText}
                 placeholder={
                   activePetContext
-                    ? `Hỏi về tình trạng sức khỏe của ${activePetContext.name}...`
-                    : 'Nhập thắc mắc hoặc triệu chứng của bé...'
+                    ? `Hỏi tình trạng của ${activePetContext.name}...`
+                    : 'Nhập câu hỏi hoặc triệu chứng...'
                 }
                 placeholderTextColor={colors.textTertiary}
                 style={[
@@ -512,7 +502,7 @@ export function FloatingAssistantBubble() {
                 onPress={() => void handleSend()}
                 disabled={!inputText.trim() || isLoading}
                 style={[
-                  styles.sendButton,
+                  styles.sendCircleButton,
                   {
                     backgroundColor: inputText.trim() && !isLoading ? colors.primary : colors.border,
                   },
@@ -521,7 +511,7 @@ export function FloatingAssistantBubble() {
                 {isLoading ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <MaterialCommunityIcons name="send" size={18} color="#FFFFFF" />
+                  <MaterialCommunityIcons name="arrow-up" size={20} color="#FFFFFF" />
                 )}
               </Pressable>
             </View>
@@ -542,7 +532,7 @@ export function FloatingAssistantBubble() {
               >
                 <View style={styles.historyHeader}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <MaterialCommunityIcons name="history" size={24} color={colors.primary} />
+                    <MaterialCommunityIcons name="history" size={22} color={colors.primary} />
                     <Text style={[typo.titleMedium, { color: colors.text, marginLeft: 8, fontWeight: '700' }]}>
                       Lịch sử câu hỏi đã hỏi
                     </Text>
@@ -558,7 +548,7 @@ export function FloatingAssistantBubble() {
 
                 {questionHistory.length === 0 ? (
                   <View style={styles.emptyHistoryBox}>
-                    <MaterialCommunityIcons name="chat-question-outline" size={40} color={colors.textTertiary} />
+                    <MaterialCommunityIcons name="chat-question-outline" size={38} color={colors.textTertiary} />
                     <Text style={[typo.bodyMedium, { color: colors.textTertiary, marginTop: 8 }]}>
                       Chưa có câu hỏi nào được lưu
                     </Text>
@@ -614,7 +604,7 @@ export function FloatingAssistantBubble() {
             </View>
           </Modal>
 
-          {/* API Key Configuration Modal */}
+          {/* API Key Modal */}
           <Modal visible={showConfigModal} transparent animationType="fade">
             <View style={styles.configModalOverlay}>
               <View
@@ -635,7 +625,7 @@ export function FloatingAssistantBubble() {
                 </View>
 
                 <Text style={[typo.bodySmall, { color: colors.textSecondary, marginTop: 8 }]}>
-                  Ứng dụng đã được tích hợp sẵn API Key mặc định của bạn. Bạn có thể cập nhật key mới tại đây nếu cần:
+                  Ứng dụng đã được tích hợp sẵn API Key mặc định của bạn:
                 </Text>
 
                 <TextInput
@@ -693,10 +683,10 @@ const styles = StyleSheet.create({
     borderRadius: BUBBLE_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOffset: { width: 0, height: 5 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 10,
+    shadowRadius: 8,
+    elevation: 8,
   },
   statusBadge: {
     position: 'absolute',
@@ -723,34 +713,37 @@ const styles = StyleSheet.create({
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  closeIconCircle: {
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  geminiBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  greenPulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22C55E',
+  },
+  headerIconBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  onlineBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginLeft: 6,
-  },
-  headerBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
     position: 'relative',
+  },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   badgeNumber: {
     position: 'absolute',
@@ -770,7 +763,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 16,
     borderWidth: 1,
     marginRight: 8,
@@ -778,7 +771,7 @@ const styles = StyleSheet.create({
   messageList: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
   messageRow: {
     flexDirection: 'row',
@@ -811,13 +804,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
     marginBottom: 4,
     alignSelf: 'flex-end',
   },
   bubble: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 15,
     paddingVertical: 10,
   },
   bubbleUser: {
@@ -834,7 +827,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   suggestionChip: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
   },
@@ -849,31 +842,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
   },
-  inputRow: {
+  capsuleInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderRadius: 28,
-    paddingLeft: 18,
-    paddingRight: 6,
-    paddingVertical: Platform.OS === 'ios' ? 6 : 4,
+    borderRadius: 26,
+    paddingLeft: 16,
+    paddingRight: 5,
+    paddingVertical: Platform.OS === 'ios' ? 5 : 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
     elevation: 2,
   },
   textInput: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 38,
     maxHeight: 110,
     paddingVertical: 6,
     fontSize: 15,
   },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  sendCircleButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 6,
