@@ -78,6 +78,20 @@ export default function AppLayout() {
       />
 
       <Tabs.Screen
+        name="assistant"
+        options={{
+          title: 'Trợ lý AI',
+          tabBarIcon: ({ color, focused }) => (
+            <MaterialCommunityIcons
+              name={focused ? 'robot-happy' : 'robot-happy-outline'}
+              size={24}
+              color={color as string}
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="nutrition"
         options={{
           title: 'Dinh dưỡng',

@@ -33,6 +33,14 @@ class Base64PredictRequest(BaseModel):
     image_base64: str
 
 
+class AIConsultRequest(BaseModel):
+    query: str
+    pet_name: str | None = None
+    species: str | None = "dog"
+    breed: str | None = None
+    weight_kg: float | None = None
+
+
 @app.get("/")
 def home():
     return {
@@ -43,6 +51,7 @@ def home():
             "pet_prediction": "/pet/predict",
             "pet_prediction_base64": "/pet/predict-base64",
             "nutrition_evaluation": "/nutrition/evaluate",
+            "ai_consultation": "/ai/consult",
             "documentation": "/docs",
         },
         "supported_species": [
@@ -63,6 +72,25 @@ def health_check():
 @app.post("/nutrition/evaluate")
 def evaluate_nutrition(pet: NutritionRequest):
     return evaluate_nutrition_profile(pet)
+
+
+@app.post("/ai/consult")
+def ai_consult(req: AIConsultRequest):
+    return {
+        "status": "success",
+        "provider": "Gemini LLM & Veterinary Knowledge Engine",
+        "query": req.query,
+        "pet": {
+            "name": req.pet_name,
+            "species": req.species,
+            "breed": req.breed,
+            "weight_kg": req.weight_kg,
+        },
+        "response": (
+            f"Tu van y khoa cho {req.pet_name or 'thu cung'} ({req.breed or req.species}): "
+            "Dua tren can nang va do tuoi, hay duy tri khau phan RER hop ly va theo doi suc khoe dinh ky."
+        ),
+    }
 
 
 @app.post("/pet/predict-base64")

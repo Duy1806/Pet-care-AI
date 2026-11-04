@@ -466,6 +466,45 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
+        {/* Section 1.5: Gemini AI Doctor Banner */}
+        <View style={{ marginTop: spacing.md, paddingHorizontal: spacing.lg }}>
+          <Pressable
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/(app)/assistant' as any);
+            }}
+            style={[
+              styles.aiDoctorBanner,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.primary,
+                borderRadius: radius.xl,
+                padding: spacing.md,
+              },
+            ]}
+          >
+            <View style={[styles.aiDoctorIcon, { backgroundColor: colors.primaryContainer }]}>
+              <MaterialCommunityIcons name="robot-happy-outline" size={26} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1, marginLeft: spacing.md }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={[typo.titleSmall, { color: colors.text, fontWeight: '700' }]}>
+                  Trợ lý Bác sĩ Thú y AI
+                </Text>
+                <View style={[styles.sparkleBadge, { backgroundColor: '#F3E8FF' }]}>
+                  <Text style={{ fontSize: 10, color: '#9333EA', fontWeight: '700' }}>
+                    Gemini LLM
+                  </Text>
+                </View>
+              </View>
+              <Text style={[typo.bodySmall, { color: colors.textSecondary, marginTop: 2 }]} numberOfLines={1}>
+                Hỏi đáp triệu chứng, sức khỏe & sơ cứu cho bé 24/7
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.primary} />
+          </Pressable>
+        </View>
+
         {/* Section 2: Quick Actions Grid */}
         <View style={{ marginTop: spacing.lg, paddingHorizontal: spacing.lg }}>
           <Text style={[typo.titleMedium, { color: colors.text, marginBottom: spacing.sm }]}>
@@ -1169,5 +1208,23 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  aiDoctorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+  },
+  aiDoctorIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sparkleBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 6,
   },
 });
