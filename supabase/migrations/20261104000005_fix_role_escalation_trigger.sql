@@ -21,7 +21,12 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    -- Allow if the authenticated caller is already an admin
+    -- CHẶN TUYỆT ĐỐI: Owner không bao giờ được phép tự chuyển vai trò sang admin
+    IF OLD.role = 'owner' AND NEW.role = 'admin' AND auth.uid() = NEW.id THEN
+        RAISE EXCEPTION 'Chủ nuôi (Owner) không được phép tự chuyển vai trò sang admin.';
+    END IF;
+
+    -- Allow only if the authenticated caller is already an admin
     IF auth.uid() IS NOT NULL AND EXISTS (
         SELECT 1 FROM public.profiles 
         WHERE id = auth.uid() AND role = 'admin' AND deleted_at IS NULL
@@ -29,7 +34,7 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    RAISE EXCEPTION 'Bạn không có quyền thay đổi vai trò tài khoản.';
+    RAISE EXCEPTION 'Chủ nuôi không có quyền thay đổi vai trò tài khoản.';
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

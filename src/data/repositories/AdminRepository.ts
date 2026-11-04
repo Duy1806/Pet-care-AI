@@ -9,6 +9,7 @@
  */
 import { supabase } from '../remote/supabaseClient';
 import type { UserRole } from '@/domain/entities/User';
+import { useAuthStore } from '@/presentation/stores/useAuthStore';
 
 export interface AdminStats {
   totalUsers: number;
@@ -162,9 +163,23 @@ export class AdminRepository {
 
   /**
    * Update a user's role (admin / owner)
+   * Strictly forbidden for standard owners; only verified admins can invoke.
    */
   async updateUserRole(userId: string, newRole: UserRole): Promise<boolean> {
     try {
+      // Security Enforcement: Strictly reject any role update attempted by non-admin owners
+      const currentUser = useAuthStore.getState().user;
+      if (!currentUser || currentUser.role !== 'admin') {
+        console.warn('[Security] Từ chối: Chủ nuôi (Owner) không được phép thay đổi vai trò tài khoản.');
+        return false;
+      }
+
+      // Prevent admin from accidentally demoting themselves and losing portal access
+      if (currentUser.id === userId && newRole !== 'admin') {
+        console.warn('[Security] Không thể tự hạ quyền chính mình');
+        return false;
+      }
+
       const { error } = await supabase
         .from('profiles')
         .update({ role: newRole })
