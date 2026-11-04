@@ -9,7 +9,8 @@
  * - Seamless pet context injection (Milo, Luna, etc.)
  * - Suggested action chips & quick veterinary questions
  * - Question History Drawer / Modal (Lưu trữ và xem lại các câu hỏi đã hỏi)
- * - Safe Area insets fix for iPhone home bar & Android navigation
+ * - Calibrated top & bottom safe insets (No clipping with Dynamic Island / Home Indicator)
+ * - Rounded capsule input bar lifted up with plenty of breathing room
  * - Persistent chat message storage via SQLite (pawcare.db)
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -23,12 +24,12 @@ import {
   PanResponder,
   Platform,
   Pressable,
+  StatusBar as RNStatusBar,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
@@ -40,6 +41,10 @@ import type { ChatMessage } from '@/domain/entities/ChatMessage';
 import type { QuestionHistoryItem } from '@/data/local/ChatHistoryDao';
 
 const BUBBLE_SIZE = 60;
+
+// Device-calibrated safe insets for Modal windows
+const MODAL_TOP_PADDING = Platform.OS === 'ios' ? 58 : (RNStatusBar.currentHeight || 24) + 12;
+const MODAL_BOTTOM_PADDING = Platform.OS === 'ios' ? 44 : 22;
 
 export function FloatingAssistantBubble() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
@@ -296,21 +301,22 @@ export function FloatingAssistantBubble() {
         </View>
       </Animated.View>
 
-      {/* AI Assistant Chat Modal with Safe Area View */}
+      {/* AI Assistant Chat Modal */}
       <Modal
         visible={isChatModalOpen}
         animationType="slide"
         presentationStyle="fullScreen"
         onRequestClose={closeChatModal}
       >
-        <SafeAreaView style={[styles.modalSafeArea, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-          {/* Top Header */}
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          {/* Top Header with safe inset from Dynamic Island / Status Bar */}
           <View
             style={[
               styles.header,
               {
                 backgroundColor: colors.surface,
                 borderBottomColor: colors.border,
+                paddingTop: MODAL_TOP_PADDING,
               },
             ]}
           >
@@ -334,7 +340,8 @@ export function FloatingAssistantBubble() {
               <View style={{ flex: 1, marginLeft: spacing.sm }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Text style={[typo.titleMedium, { color: colors.text, fontWeight: '700' }]}>
-                    {'Bác sĩ Thú y AI'}
+                    {'Bác sĩ '}
+                    <Text style={{ color: colors.primary }}>{'Thú y AI'}</Text>
                   </Text>
                   <View style={[styles.onlineBadge, { backgroundColor: '#DCFCE7' }]}>
                     <Text style={{ fontSize: 10, color: '#16A34A', fontWeight: '700' }}>
@@ -461,16 +468,16 @@ export function FloatingAssistantBubble() {
             }
           />
 
-          {/* Floating Bottom Input Bar with Safe Area Spacing */}
+          {/* Floating Bottom Input Bar — Rounded capsule pill & lifted with breathing room */}
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
             style={[
               styles.inputContainer,
               {
                 backgroundColor: colors.surface,
                 borderTopColor: colors.border,
-                paddingBottom: Platform.OS === 'ios' ? 16 : 10,
+                paddingBottom: MODAL_BOTTOM_PADDING,
               },
             ]}
           >
@@ -479,7 +486,6 @@ export function FloatingAssistantBubble() {
                 styles.inputRow,
                 {
                   backgroundColor: colors.surfaceElevated,
-                  borderRadius: radius.full,
                   borderColor: colors.border,
                 },
               ]}
@@ -509,7 +515,6 @@ export function FloatingAssistantBubble() {
                   styles.sendButton,
                   {
                     backgroundColor: inputText.trim() && !isLoading ? colors.primary : colors.border,
-                    borderRadius: radius.full,
                   },
                 ]}
               >
@@ -522,7 +527,7 @@ export function FloatingAssistantBubble() {
             </View>
           </KeyboardAvoidingView>
 
-          {/* Question History Modal (Lịch sử các câu hỏi đã hỏi) */}
+          {/* Question History Modal */}
           <Modal visible={isHistoryModalOpen} transparent animationType="slide" onRequestClose={closeHistoryModal}>
             <View style={styles.historyModalOverlay}>
               <View
@@ -669,7 +674,7 @@ export function FloatingAssistantBubble() {
               </View>
             </View>
           </Modal>
-        </SafeAreaView>
+        </View>
       </Modal>
     </>
   );
@@ -707,12 +712,12 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#22C55E',
   },
-  modalSafeArea: {
+  modalContainer: {
     flex: 1,
   },
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingBottom: 10,
     borderBottomWidth: 1,
   },
   headerTitleRow: {
@@ -773,7 +778,7 @@ const styles = StyleSheet.create({
   messageList: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 24,
+    paddingBottom: 20,
   },
   messageRow: {
     flexDirection: 'row',
@@ -842,26 +847,36 @@ const styles = StyleSheet.create({
   inputContainer: {
     borderTopWidth: 1,
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 10,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderWidth: 1.5,
+    borderRadius: 28,
+    paddingLeft: 18,
+    paddingRight: 6,
+    paddingVertical: Platform.OS === 'ios' ? 6 : 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   textInput: {
     flex: 1,
-    maxHeight: 100,
-    paddingVertical: 4,
+    minHeight: 40,
+    maxHeight: 110,
+    paddingVertical: 6,
+    fontSize: 15,
   },
   sendButton: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
+    marginLeft: 6,
   },
   historyModalOverlay: {
     flex: 1,

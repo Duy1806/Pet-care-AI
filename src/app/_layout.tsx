@@ -30,6 +30,7 @@ import { useAuthStore } from '../presentation/stores/useAuthStore';
 import * as Linking from 'expo-linking';
 import { supabase } from '../data/remote/supabaseClient';
 import { FloatingAssistantBubble } from '../presentation/components/FloatingAssistantBubble';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 function parseUrlParams(rawUrl: string): Record<string, string> {
   const params: Record<string, string> = {};
@@ -220,8 +221,10 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider>
-      <RootNavigator />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <RootNavigator />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
