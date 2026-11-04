@@ -560,12 +560,7 @@ export function FloatingAssistantBubble() {
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
-            style={[
-              styles.floatingInputWrapper,
-              {
-                paddingBottom: INPUT_BOTTOM_PADDING,
-              },
-            ]}
+            style={styles.floatingInputWrapper}
           >
             <View
               style={[
@@ -1025,21 +1020,23 @@ const styles = StyleSheet.create({
   },
   floatingInputWrapper: {
     paddingHorizontal: 16,
+    backgroundColor: 'transparent',
   },
   geminiCapsuleBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.2,
+    borderWidth: 1.5,
     borderRadius: 30,
-    paddingLeft: 10,
+    paddingLeft: 12,
     paddingRight: 6,
     paddingVertical: Platform.OS === 'ios' ? 6 : 4,
     minHeight: 52,
+    marginBottom: Platform.OS === 'ios' ? 56 : 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
   },
   geminiLeftIconBtn: {
     width: 36,
