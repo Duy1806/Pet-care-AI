@@ -2,10 +2,10 @@
  * PawCare AI — Admin Repository
  *
  * Provides data aggregation and management capabilities for the Admin Portal:
- * - System KPIs (Total users, pets, AI consultations, vaccination alerts)
+ * - System KPIs (Total users, pets, vaccination alerts)
  * - User list management & role switching
- * - AI consultation auditing and emergency triage detection
- * - Breed catalog inspection
+ * - Master Pet Registry (All pets, health stats, owner details)
+ * - Vaccination & Preventive Care Hub (Overdue & upcoming immunizations)
  */
 import { supabase } from '../remote/supabaseClient';
 import type { UserRole } from '@/domain/entities/User';
@@ -16,9 +16,9 @@ export interface AdminStats {
   totalPets: number;
   dogCount: number;
   catCount: number;
-  totalAiConsultations: number;
   totalVaccinations: number;
-  emergencyAlertCount: number;
+  overdueVaccinations: number;
+  upcomingVaccinations: number;
 }
 
 export interface AdminUserItem {
@@ -32,28 +32,36 @@ export interface AdminUserItem {
   petCount: number;
 }
 
-export interface AdminAiConsultationItem {
+export interface AdminPetItem {
   id: string;
-  title: string;
-  userName: string;
-  petName?: string;
+  name: string;
+  species: 'dog' | 'cat' | 'other';
+  breedName: string;
+  sex: 'male' | 'female' | 'unknown';
+  isNeutered: boolean;
+  birthDate: string | null;
+  weightKg: number | null;
+  activityLevel: string;
+  photoUrl: string | null;
+  ownerId: string;
+  ownerName: string;
+  ownerPhone: string;
   createdAt: string;
-  updatedAt: string;
-  isEmergency: boolean;
-  messageCount: number;
-  previewText?: string;
 }
 
-export interface AdminBreedItem {
+export interface AdminVaccinationItem {
   id: string;
-  species: 'dog' | 'cat' | 'other';
-  nameVi: string;
-  nameEn: string;
-  sizeCategory?: string;
-  typicalWeightMinKg?: number;
-  typicalWeightMaxKg?: number;
-  commonHealthIssues?: string[];
-  imageUrl?: string;
+  petId: string;
+  petName: string;
+  petSpecies: 'dog' | 'cat' | 'other';
+  ownerName: string;
+  type: 'vaccine' | 'deworming' | 'flea_tick';
+  name: string;
+  administeredAt: string;
+  nextDueAt: string | null;
+  vetClinic: string | null;
+  note: string | null;
+  status: 'completed' | 'upcoming' | 'overdue';
 }
 
 export class AdminRepository {
@@ -78,43 +86,47 @@ export class AdminRepository {
       const dogCount = petsData?.filter((p) => p.species === 'dog').length || 0;
       const catCount = petsData?.filter((p) => p.species === 'cat').length || 0;
 
-      // 3. AI consultations from chat_conversations
-      const { data: convData } = await supabase
-        .from('chat_conversations')
-        .select('title')
-        .is('deleted_at', null);
-
-      const totalAiConsultations = convData?.length || 0;
-      const emergencyKeywords = ['nôn', 'bỏ ăn', 'co giật', 'ngộ độc', 'sốt', 'máu', 'tiêu chảy', 'khẩn cấp'];
-      const emergencyAlertCount = convData?.filter((c) =>
-        emergencyKeywords.some((kw) => (c.title || '').toLowerCase().includes(kw))
-      ).length || 0;
-
-      // 4. Total vaccinations
-      const { count: vaccCount } = await supabase
+      // 3. Vaccinations statistics & due alerts
+      const { data: vaccData } = await supabase
         .from('vaccinations')
-        .select('*', { count: 'exact', head: true })
+        .select('next_due_at')
         .is('deleted_at', null);
+
+      const now = new Date();
+      const in14Days = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+      let overdueCount = 0;
+      let upcomingCount = 0;
+
+      vaccData?.forEach((v) => {
+        if (v.next_due_at) {
+          const dueDate = new Date(v.next_due_at);
+          if (dueDate < now) {
+            overdueCount++;
+          } else if (dueDate <= in14Days) {
+            upcomingCount++;
+          }
+        }
+      });
 
       return {
         totalUsers: Math.max(usersCount || 0, 1),
         totalPets,
         dogCount,
         catCount,
-        totalAiConsultations,
-        totalVaccinations: vaccCount || 0,
-        emergencyAlertCount,
+        totalVaccinations: vaccData?.length || 0,
+        overdueVaccinations: overdueCount,
+        upcomingVaccinations: upcomingCount,
       };
     } catch (err) {
       console.warn('[AdminRepository] getStats fallback:', err);
       return {
         totalUsers: 1,
-        totalPets: 2,
-        dogCount: 1,
-        catCount: 1,
-        totalAiConsultations: 4,
-        totalVaccinations: 3,
-        emergencyAlertCount: 1,
+        totalPets: 0,
+        dogCount: 0,
+        catCount: 0,
+        totalVaccinations: 0,
+        overdueVaccinations: 0,
+        upcomingVaccinations: 0,
       };
     }
   }
@@ -193,67 +205,128 @@ export class AdminRepository {
   }
 
   /**
-   * Audit recent AI consultations
+   * Fetch all registered pets across the entire system (Master Pet Registry)
    */
-  async getAiConsultations(): Promise<AdminAiConsultationItem[]> {
+  async getAllPets(): Promise<AdminPetItem[]> {
     try {
-      const { data, error } = await supabase
-        .from('chat_conversations')
-        .select('id, title, pet_name, created_at, updated_at, user_id')
+      // 1. Fetch pets
+      const { data: pets, error } = await supabase
+        .from('pets')
+        .select('id, name, species, breed_name_custom, sex, is_neutered, birth_date, current_weight_kg, activity_level, photo_url, owner_id, created_at')
         .is('deleted_at', null)
-        .order('updated_at', { ascending: false })
-        .limit(30);
+        .order('created_at', { ascending: false });
 
-      if (error || !data) return [];
+      if (error || !pets) return [];
 
-      const emergencyKeywords = ['nôn', 'bỏ ăn', 'co giật', 'ngộ độc', 'sốt', 'máu', 'tiêu chảy', 'khẩn cấp'];
+      // 2. Fetch owners mapping
+      const { data: owners } = await supabase
+        .from('profiles')
+        .select('id, full_name, phone')
+        .is('deleted_at', null);
 
-      return data.map((row) => ({
-        id: row.id,
-        title: row.title,
-        userName: 'Chủ nuôi',
-        petName: row.pet_name,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        isEmergency: emergencyKeywords.some((kw) => (row.title || '').toLowerCase().includes(kw)),
-        messageCount: 2,
-      }));
+      const ownerMap = new Map<string, { name: string; phone: string }>();
+      owners?.forEach((o) => {
+        ownerMap.set(o.id, { name: o.full_name || 'Chủ nuôi', phone: o.phone || '' });
+      });
+
+      return pets.map((p) => {
+        const owner = ownerMap.get(p.owner_id);
+        return {
+          id: p.id,
+          name: p.name,
+          species: p.species as 'dog' | 'cat' | 'other',
+          breedName: p.breed_name_custom || (p.species === 'dog' ? 'Chó cảnh' : 'Mèo nhà'),
+          sex: (p.sex as 'male' | 'female' | 'unknown') || 'unknown',
+          isNeutered: Boolean(p.is_neutered),
+          birthDate: p.birth_date,
+          weightKg: p.current_weight_kg ? Number(p.current_weight_kg) : null,
+          activityLevel: p.activity_level || 'moderate',
+          photoUrl: p.photo_url,
+          ownerId: p.owner_id,
+          ownerName: owner?.name || 'Chủ nuôi',
+          ownerPhone: owner?.phone || '',
+          createdAt: p.created_at,
+        };
+      });
     } catch (err) {
-      console.warn('[AdminRepository] getAiConsultations error:', err);
+      console.warn('[AdminRepository] getAllPets error:', err);
       return [];
     }
   }
 
   /**
-   * Query breed catalog for inspection
+   * Fetch all vaccination and preventive care records across the system
    */
-  async getBreedsCatalog(): Promise<AdminBreedItem[]> {
+  async getAllVaccinations(): Promise<AdminVaccinationItem[]> {
     try {
-      const { data, error } = await supabase
-        .from('breeds')
-        .select('*')
+      // 1. Fetch vaccinations
+      const { data: records, error } = await supabase
+        .from('vaccinations')
+        .select('id, pet_id, type, name, administered_at, next_due_at, vet_clinic, note, created_at')
         .is('deleted_at', null)
-        .order('name_vi', { ascending: true });
+        .order('administered_at', { ascending: false });
 
-      if (error || !data) return [];
+      if (error || !records) return [];
 
-      return data.map((b) => ({
-        id: b.id,
-        species: b.species,
-        nameVi: b.name_vi,
-        nameEn: b.name_en,
-        sizeCategory: b.size_category,
-        typicalWeightMinKg: b.typical_weight_min_kg,
-        typicalWeightMaxKg: b.typical_weight_max_kg,
-        commonHealthIssues: Array.isArray(b.common_health_issues) ? b.common_health_issues : [],
-        imageUrl: b.image_url,
-      }));
+      // 2. Fetch pets and owners mapping
+      const { data: pets } = await supabase
+        .from('pets')
+        .select('id, name, species, owner_id')
+        .is('deleted_at', null);
+
+      const { data: owners } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .is('deleted_at', null);
+
+      const ownerMap = new Map<string, string>();
+      owners?.forEach((o) => ownerMap.set(o.id, o.full_name || 'Chủ nuôi'));
+
+      const petMap = new Map<string, { name: string; species: 'dog' | 'cat' | 'other'; ownerName: string }>();
+      pets?.forEach((p) => {
+        petMap.set(p.id, {
+          name: p.name,
+          species: (p.species as 'dog' | 'cat' | 'other') || 'dog',
+          ownerName: ownerMap.get(p.owner_id) || 'Chủ nuôi',
+        });
+      });
+
+      const now = new Date();
+      const in14Days = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+      return records.map((r) => {
+        const petInfo = petMap.get(r.pet_id);
+        let status: 'completed' | 'upcoming' | 'overdue' = 'completed';
+
+        if (r.next_due_at) {
+          const due = new Date(r.next_due_at);
+          if (due < now) {
+            status = 'overdue';
+          } else if (due <= in14Days) {
+            status = 'upcoming';
+          }
+        }
+
+        return {
+          id: r.id,
+          petId: r.pet_id,
+          petName: petInfo?.name || 'Thú cưng',
+          petSpecies: petInfo?.species || 'dog',
+          ownerName: petInfo?.ownerName || 'Chủ nuôi',
+          type: (r.type as 'vaccine' | 'deworming' | 'flea_tick') || 'vaccine',
+          name: r.name,
+          administeredAt: r.administered_at,
+          nextDueAt: r.next_due_at,
+          vetClinic: r.vet_clinic,
+          note: r.note,
+          status,
+        };
+      });
     } catch (err) {
-      console.warn('[AdminRepository] getBreedsCatalog error:', err);
+      console.warn('[AdminRepository] getAllVaccinations error:', err);
       return [];
     }
   }
 }
 
 export const adminRepo = new AdminRepository();
-
