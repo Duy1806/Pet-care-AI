@@ -168,18 +168,23 @@ export default function HomeScreen() {
         ]}
       >
         <View style={styles.userInfoRow}>
-          <View
+          <Pressable
+            onPress={() => router.push('/(app)/profile' as any)}
             style={[
               styles.avatarContainer,
-              { backgroundColor: colors.primaryContainer },
+              { backgroundColor: colors.primaryContainer, overflow: 'hidden' },
             ]}
           >
-            <MaterialCommunityIcons
-              name="paw"
-              size={24}
-              color={colors.primary}
-            />
-          </View>
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={{ width: '100%', height: '100%', borderRadius: 22 }} resizeMode="cover" />
+            ) : (
+              <MaterialCommunityIcons
+                name="paw"
+                size={24}
+                color={colors.primary}
+              />
+            )}
+          </Pressable>
           <View style={{ marginLeft: spacing.sm }}>
             <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
               Xin chào 👋

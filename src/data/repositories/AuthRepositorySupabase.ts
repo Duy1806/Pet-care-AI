@@ -288,5 +288,47 @@ export class AuthRepositorySupabase implements AuthRepository {
     const session = await this.restoreSession();
     return session?.user || null;
   }
+
+  async updateProfile(params: { fullName?: string; phone?: string; avatarUrl?: string | null }): Promise<User> {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) {
+      throw new Error('Chưa đăng nhập.');
+    }
+
+    const updates: Record<string, any> = {};
+    if (params.fullName !== undefined) updates.full_name = params.fullName.trim();
+    if (params.phone !== undefined) updates.phone = params.phone.trim();
+    if (params.avatarUrl !== undefined) updates.avatar_url = params.avatarUrl;
+
+    if (Object.keys(updates).length > 0) {
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', authUser.id);
+
+      if (error) {
+        throw new Error(error.message || 'Không thể cập nhật thông tin hồ sơ.');
+      }
+    }
+
+    if (params.fullName !== undefined) {
+      await supabase.auth.updateUser({
+        data: { full_name: params.fullName.trim() },
+      });
+    }
+
+    const profile = await this.getProfileData(authUser.id);
+    return {
+      id: authUser.id,
+      email: authUser.email || '',
+      fullName: profile.fullName,
+      phone: profile.phone,
+      role: profile.role,
+      avatarUrl: profile.avatarUrl,
+      preferredTheme: profile.preferredTheme,
+      petPreferences: (authUser.user_metadata?.pet_preferences as any) || [],
+      createdAt: authUser.created_at,
+    };
+  }
 }
 

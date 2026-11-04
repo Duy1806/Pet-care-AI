@@ -42,4 +42,7 @@ export interface AuthRepository {
 
   /** Get the currently signed-in user, or null */
   getCurrentUser(): Promise<User | null>;
+
+  /** Update the current user's profile */
+  updateProfile(params: { fullName?: string; phone?: string; avatarUrl?: string | null }): Promise<User>;
 }

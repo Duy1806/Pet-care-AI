@@ -8,20 +8,26 @@
  * - Dev Test Lab shortcut (Offline-first test runner)
  * - Logout button with haptics
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 
 import { useAppTheme } from '@/presentation/theme';
 import { useAuthStore } from '@/presentation/stores/useAuthStore';
@@ -33,10 +39,23 @@ import { AddPetModal } from '@/presentation/components/AddPetModal';
 export default function ProfileScreen() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { user, logout, isLoading } = useAuthStore();
+  const { user, logout, updateProfile, isLoading } = useAuthStore();
   const { pets, deletePet } = usePetStore();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editFullName, setEditFullName] = useState(user?.fullName || '');
+  const [editPhone, setEditPhone] = useState(user?.phone || '');
+  const [editAvatarUrl, setEditAvatarUrl] = useState(user?.avatarUrl || null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setEditFullName(user.fullName || '');
+      setEditPhone(user.phone || '');
+      setEditAvatarUrl(user.avatarUrl || null);
+    }
+  }, [user]);
 
   const handleDeletePet = (petId: string, petName: string) => {
     Alert.alert(
@@ -76,6 +95,98 @@ export default function ProfileScreen() {
       ],
     );
   }, [logout]);
+
+  const handlePickAvatar = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      'Ảnh đại diện chủ nuôi',
+      'Chọn phương thức cập nhật ảnh đại diện:',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: '📸 Chụp ảnh mới',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Cần quyền truy cập', 'Vui lòng cho phép ứng dụng truy cập máy ảnh trong Cài đặt.');
+                return;
+              }
+              const res = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.6,
+                base64: true,
+              });
+              if (!res.canceled && res.assets && res.assets[0]) {
+                const asset = res.assets[0];
+                const finalUrl = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+                setEditAvatarUrl(finalUrl);
+                void updateProfile({ avatarUrl: finalUrl });
+                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+            } catch (err: any) {
+              Alert.alert('Lỗi chụp ảnh', err?.message || 'Không thể chụp ảnh lúc này.');
+            }
+          },
+        },
+        {
+          text: '🖼️ Chọn từ thư viện',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('Cần quyền truy cập', 'Vui lòng cho phép ứng dụng truy cập thư viện ảnh trong Cài đặt.');
+                return;
+              }
+              const res = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.6,
+                base64: true,
+              });
+              if (!res.canceled && res.assets && res.assets[0]) {
+                const asset = res.assets[0];
+                const finalUrl = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+                setEditAvatarUrl(finalUrl);
+                void updateProfile({ avatarUrl: finalUrl });
+                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+            } catch (err: any) {
+              Alert.alert('Lỗi chọn ảnh', err?.message || 'Không thể chọn ảnh từ thư viện.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editFullName.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập họ và tên của bạn.');
+      return;
+    }
+    setIsSavingProfile(true);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const ok = await updateProfile({
+        fullName: editFullName.trim(),
+        phone: editPhone.trim(),
+        avatarUrl: editAvatarUrl,
+      });
+      if (ok) {
+        setIsEditModalOpen(false);
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert('Thành công', 'Thông tin hồ sơ của bạn đã được cập nhật!');
+      } else {
+        Alert.alert('Lỗi cập nhật', 'Không thể lưu thông tin lúc này. Vui lòng thử lại.');
+      }
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -122,26 +233,69 @@ export default function ProfileScreen() {
           ]}
         >
           <View style={styles.userRow}>
-            <View
+            {/* Avatar with Camera Badge */}
+            <Pressable
+              onPress={handlePickAvatar}
+              hitSlop={6}
               style={[
                 styles.avatarCircle,
-                { backgroundColor: colors.primaryContainer },
+                {
+                  backgroundColor: colors.primaryContainer,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                },
               ]}
             >
-              <MaterialCommunityIcons
-                name="account"
-                size={36}
-                color={colors.primary}
-              />
-            </View>
+              {user?.avatarUrl ? (
+                <Image
+                  source={{ uri: user.avatarUrl }}
+                  style={{ width: '100%', height: '100%', borderRadius: 32 }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <MaterialCommunityIcons
+                  name="account"
+                  size={36}
+                  color={colors.primary}
+                />
+              )}
+              <View style={[styles.avatarCameraBadge, { backgroundColor: colors.primary }]}>
+                <MaterialCommunityIcons name="camera" size={11} color="#FFFFFF" />
+              </View>
+            </Pressable>
 
             <View style={{ marginLeft: spacing.md, flex: 1 }}>
-              <Text style={[typo.titleLarge, { color: colors.text }]}>
-                {user?.fullName || 'Chủ nuôi thú cưng'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={[typo.titleLarge, { color: colors.text, fontWeight: '700', flex: 1 }]} numberOfLines={1}>
+                  {user?.fullName || 'Chủ nuôi thú cưng'}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setEditFullName(user?.fullName || '');
+                    setEditPhone(user?.phone || '');
+                    setEditAvatarUrl(user?.avatarUrl || null);
+                    setIsEditModalOpen(true);
+                  }}
+                  hitSlop={8}
+                  style={[styles.editProfileBtn, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}
+                >
+                  <MaterialCommunityIcons name="pencil-outline" size={14} color={colors.primary} />
+                  <Text style={[typo.labelSmall, { color: colors.primary, fontWeight: '700', marginLeft: 4 }]}>
+                    Sửa
+                  </Text>
+                </Pressable>
+              </View>
+
               <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
                 {user?.email || 'email@example.com'}
               </Text>
+
+              {user?.phone ? (
+                <Text style={[typo.caption, { color: colors.textSecondary, marginTop: 2 }]}>
+                  📞 {user.phone}
+                </Text>
+              ) : null}
 
               <View
                 style={[
@@ -303,7 +457,7 @@ export default function ProfileScreen() {
             {/* Setting 2.5: Sổ tiêm chủng */}
             <Pressable
               onPress={() => router.push('/add-vaccination' as any)}
-              style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 1, padding: spacing.md }]}
+              style={[styles.settingRow, { padding: spacing.md }]}
             >
               <View style={styles.settingLeft}>
                 <MaterialCommunityIcons name="needle" size={22} color="#0284C7" />
@@ -314,31 +468,13 @@ export default function ProfileScreen() {
               </View>
               <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textTertiary} />
             </Pressable>
-
-            {/* Setting 3: Dev Test Lab */}
-            <Pressable
-              onPress={() => router.push('/(app)/dev-test' as any)}
-              style={[styles.settingRow, { padding: spacing.md }]}
-            >
-              <View style={styles.settingLeft}>
-                <MaterialCommunityIcons name="wrench-outline" size={22} color="#D97706" />
-                <View style={{ marginLeft: spacing.sm }}>
-                  <Text style={[typo.labelLarge, { color: colors.text }]}>Phòng thử nghiệm Dev Lab</Text>
-                  <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>Kiểm tra đồng bộ SQLite & Supabase</Text>
-                </View>
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textTertiary} />
-            </Pressable>
           </View>
         </View>
 
         {/* App Info Footer */}
         <View style={{ marginTop: spacing.lg, alignItems: 'center' }}>
           <Text style={[typo.labelSmall, { color: colors.textTertiary }]}>
-            PawCare AI — Capstone Project v1.0.0
-          </Text>
-          <Text style={[typo.bodySmall, { color: colors.textTertiary, marginTop: 2 }]}>
-            Phát triển ứng dụng di động đa nền tảng (VKU)
+            PawCare AI • Phiên bản 1.0.0
           </Text>
         </View>
 
@@ -357,6 +493,166 @@ export default function ProfileScreen() {
         visible={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
       />
+
+      {/* Modal Chỉnh sửa thông tin chủ nuôi */}
+      <Modal
+        visible={isEditModalOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsEditModalOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={[styles.editModalContainer, { backgroundColor: colors.background }]}
+        >
+          {/* Header Modal */}
+          <View
+            style={[
+              styles.editModalHeader,
+              {
+                backgroundColor: colors.surface,
+                borderBottomColor: colors.border,
+              },
+            ]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[typo.titleLarge, { color: colors.text, fontWeight: '700' }]}>
+                Chỉnh sửa hồ sơ chủ nuôi
+              </Text>
+              <Text style={[typo.caption, { color: colors.textSecondary, marginTop: 2 }]}>
+                Cập nhật họ tên, số điện thoại & ảnh đại diện
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => setIsEditModalOpen(false)}
+              hitSlop={10}
+              style={[styles.closeModalBtn, { backgroundColor: colors.surfaceElevated }]}
+            >
+              <MaterialCommunityIcons name="close" size={20} color={colors.text} />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
+            {/* Avatar Preview & Update */}
+            <View style={{ alignItems: 'center', marginBottom: spacing.lg }}>
+              <Pressable onPress={handlePickAvatar} style={styles.avatarEditWrapper}>
+                <View
+                  style={[
+                    styles.avatarEditPreview,
+                    {
+                      backgroundColor: colors.primaryContainer,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  {editAvatarUrl || user?.avatarUrl ? (
+                    <Image
+                      source={{ uri: editAvatarUrl || user?.avatarUrl || '' }}
+                      style={{ width: '100%', height: '100%', borderRadius: 48 }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <MaterialCommunityIcons name="account" size={54} color={colors.primary} />
+                  )}
+                </View>
+                <View style={[styles.avatarCameraFloatingBadge, { backgroundColor: colors.primary }]}>
+                  <MaterialCommunityIcons name="camera" size={16} color="#FFFFFF" />
+                </View>
+              </Pressable>
+              <Pressable onPress={handlePickAvatar} style={{ marginTop: 8 }}>
+                <Text style={[typo.labelSmall, { color: colors.primary, fontWeight: '700' }]}>
+                  Đổi ảnh đại diện
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Inputs */}
+            <View style={{ gap: spacing.md }}>
+              <View>
+                <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 6 }]}>
+                  Họ và tên chủ nuôi <Text style={{ color: colors.error }}>*</Text>
+                </Text>
+                <TextInput
+                  value={editFullName}
+                  onChangeText={setEditFullName}
+                  placeholder="Nhập họ và tên..."
+                  placeholderTextColor={colors.textTertiary}
+                  style={[
+                    styles.inputField,
+                    typo.bodyMedium,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                      borderRadius: radius.md,
+                    },
+                  ]}
+                />
+              </View>
+
+              <View>
+                <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 6 }]}>
+                  Số điện thoại liên hệ
+                </Text>
+                <TextInput
+                  value={editPhone}
+                  onChangeText={setEditPhone}
+                  placeholder="Ví dụ: 0912345678"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="phone-pad"
+                  style={[
+                    styles.inputField,
+                    typo.bodyMedium,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                      borderRadius: radius.md,
+                    },
+                  ]}
+                />
+              </View>
+
+              <View>
+                <Text style={[typo.labelMedium, { color: colors.textSecondary, marginBottom: 6 }]}>
+                  Email tài khoản
+                </Text>
+                <TextInput
+                  value={user?.email || ''}
+                  editable={false}
+                  style={[
+                    styles.inputField,
+                    typo.bodyMedium,
+                    {
+                      backgroundColor: colors.surfaceElevated,
+                      borderColor: colors.border,
+                      color: colors.textSecondary,
+                      borderRadius: radius.md,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+
+            {/* Submit Buttons */}
+            <View style={{ marginTop: spacing.xl, gap: 10 }}>
+              <PrimaryButton
+                title={isSavingProfile ? 'Đang lưu...' : 'Lưu thay đổi'}
+                onPress={handleSaveProfile}
+                loading={isSavingProfile}
+              />
+              <Pressable
+                onPress={() => setIsEditModalOpen(false)}
+                style={[styles.cancelModalBtn, { borderColor: colors.border, borderRadius: radius.md }]}
+              >
+                <Text style={[typo.labelLarge, { color: colors.textSecondary, textAlign: 'center' }]}>
+                  Hủy bỏ
+                </Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -419,6 +715,82 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 10,
+  },
+  avatarCameraBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  editProfileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  editModalContainer: {
+    flex: 1,
+  },
+  editModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  closeModalBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarEditWrapper: {
+    position: 'relative',
+    width: 96,
+    height: 96,
+  },
+  avatarEditPreview: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    overflow: 'hidden',
+  },
+  avatarCameraFloatingBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  inputField: {
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+  },
+  cancelModalBtn: {
+    borderWidth: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

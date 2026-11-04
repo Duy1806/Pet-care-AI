@@ -179,4 +179,19 @@ export class AuthRepositoryMock implements AuthRepository {
   async getCurrentUser(): Promise<User | null> {
     return currentSession?.user ?? null;
   }
+
+  async updateProfile(params: { fullName?: string; phone?: string; avatarUrl?: string | null }): Promise<User> {
+    await delay(300);
+    if (!currentSession) {
+      throw new Error('Chưa đăng nhập.');
+    }
+    const updatedUser: User = {
+      ...currentSession.user,
+      fullName: params.fullName !== undefined ? params.fullName.trim() : currentSession.user.fullName,
+      phone: params.phone !== undefined ? params.phone.trim() : currentSession.user.phone,
+      avatarUrl: params.avatarUrl !== undefined ? params.avatarUrl : currentSession.user.avatarUrl,
+    };
+    currentSession.user = updatedUser;
+    return updatedUser;
+  }
 }

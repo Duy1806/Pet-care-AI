@@ -14,6 +14,7 @@ import {
   logoutUseCase,
   registerUseCase,
   restoreSessionUseCase,
+  authRepository,
 } from '../../di/container';
 
 interface AuthState {
@@ -51,6 +52,8 @@ interface AuthState {
   resendSignUpOtp: () => Promise<boolean>;
   /** Cancel unverified sign up */
   cancelSignUpVerification: () => void;
+  /** Update user profile */
+  updateProfile: (params: { fullName?: string; phone?: string; avatarUrl?: string | null }) => Promise<boolean>;
   /** Sign out */
   logout: () => Promise<void>;
   /** Clear error state */
@@ -237,4 +240,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       forgotPasswordEmail: '',
       error: null,
     }),
+
+  updateProfile: async (params) => {
+    try {
+      set({ isLoading: true, error: null });
+      const updatedUser = await authRepository.updateProfile(params);
+      set((state) => ({
+        user: updatedUser,
+        session: state.session ? { ...state.session, user: updatedUser } : null,
+        isLoading: false,
+      }));
+      return true;
+    } catch (e: any) {
+      const message = e instanceof Error ? e.message : 'Không thể cập nhật hồ sơ';
+      set({ isLoading: false, error: message });
+      return false;
+    }
+  },
 }));
