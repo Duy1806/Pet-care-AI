@@ -443,17 +443,17 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                   {alerts.length > 1 && (
-                    <Text style={[typo.labelSmall, { color: colors.textSecondary, marginLeft: 6 }]}>
+                    <Text style={[typo.labelSmall, { color: '#1F2937', marginLeft: 6, fontWeight: '600' }]}>
                       +{alerts.length - 1} lịch khác
                     </Text>
                   )}
                 </View>
 
                 <Text
-                  style={[typo.bodySmall, { color: colors.text, marginTop: 3, includeFontPadding: false }]}
+                  style={[typo.bodySmall, { color: '#000000', marginTop: 3, includeFontPadding: false, fontWeight: '500' }]}
                   numberOfLines={1}
                 >
-                  Bé <Text style={{ fontWeight: '700' }}>{alerts[0].petName}</Text>: {alerts[0].record.name} ({alerts[0].record.nextDueAt})
+                  Bé <Text style={{ fontWeight: '700', color: '#000000' }}>{alerts[0].petName}</Text>: {alerts[0].record.name} ({alerts[0].record.nextDueAt})
                 </Text>
               </View>
 
