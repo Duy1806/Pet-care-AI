@@ -203,7 +203,10 @@ function RootNavigator() {
           }}
         />
       </Stack>
-      {Boolean(user && session) && <FloatingAssistantBubble />}
+      {/* AI Assistant Chat Bubble: Chỉ hiển thị cho Chủ nuôi (User) trong App, ẩn hoàn toàn ở Admin */}
+      {Boolean(user && session && user.role !== 'admin' && (segments as unknown as string[])[0] !== 'admin') && (
+        <FloatingAssistantBubble />
+      )}
     </>
   );
 }
