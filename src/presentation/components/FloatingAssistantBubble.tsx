@@ -40,8 +40,8 @@ const BUBBLE_SIZE = 60;
 // Dynamic Island (iPhone 14 Pro/15/16) extends to 54pt.
 // We start the header at 62pt to guarantee 0% overlap with status bar icons.
 const HEADER_TOP_PADDING = Platform.OS === 'ios' ? 62 : (RNStatusBar.currentHeight || 24) + 14;
-// iPhone Home Indicator clearance
-const INPUT_BOTTOM_PADDING = Platform.OS === 'ios' ? 36 : 18;
+// iPhone Home Indicator clearance & elevated floating distance
+const INPUT_BOTTOM_PADDING = Platform.OS === 'ios' ? 56 : 28;
 
 export function FloatingAssistantBubble() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
