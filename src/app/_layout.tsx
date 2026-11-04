@@ -31,6 +31,7 @@ import * as Linking from 'expo-linking';
 import { supabase } from '../data/remote/supabaseClient';
 import { FloatingAssistantBubble } from '../presentation/components/FloatingAssistantBubble';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useChatStore } from '../presentation/stores/useChatStore';
 
 function parseUrlParams(rawUrl: string): Record<string, string> {
   const params: Record<string, string> = {};
@@ -145,6 +146,11 @@ function RootNavigator() {
       router.replace('/(app)' as any);
     }
   }, [user, session, isInitialized, segments, router]);
+
+  // Synchronize active user for Chat Store to ensure strict multi-user privacy
+  useEffect(() => {
+    void useChatStore.getState().setUser(user?.id ?? null);
+  }, [user?.id]);
 
   return (
     <>

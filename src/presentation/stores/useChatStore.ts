@@ -1,7 +1,8 @@
 /**
  * useChatStore — Zustand store for AI Veterinary Assistant
  *
- * Persists chat history & questions locally via SQLite (ChatHistoryDao).
+ * Persists chat history & questions locally via SQLite (ChatHistoryDao)
+ * with strict per-user account isolation.
  */
 import { create } from 'zustand';
 import type { ChatMessage } from '@/domain/entities/ChatMessage';
@@ -9,6 +10,7 @@ import { GeminiAssistantService, type PetContext } from '@/domain/services/Gemin
 import { ChatHistoryDao, type QuestionHistoryItem } from '@/data/local/ChatHistoryDao';
 
 interface ChatStoreState {
+  currentUserId: string | null;
   messages: ChatMessage[];
   questionHistory: QuestionHistoryItem[];
   isLoading: boolean;
@@ -18,6 +20,7 @@ interface ChatStoreState {
   isHistoryModalOpen: boolean;
 
   // Actions
+  setUser: (userId: string | null) => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
   clearHistory: () => Promise<void>;
   setApiKey: (key: string) => void;
@@ -46,6 +49,7 @@ const INITIAL_WELCOME_MESSAGE: ChatMessage = {
 };
 
 export const useChatStore = create<ChatStoreState>((set, get) => ({
+  currentUserId: null,
   messages: [INITIAL_WELCOME_MESSAGE],
   questionHistory: [],
   isLoading: false,
@@ -53,6 +57,22 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   activePetContext: null,
   isChatModalOpen: false,
   isHistoryModalOpen: false,
+
+  setUser: async (userId: string | null) => {
+    if (!userId) {
+      set({
+        currentUserId: null,
+        messages: [INITIAL_WELCOME_MESSAGE],
+        questionHistory: [],
+        activePetContext: null,
+      });
+      return;
+    }
+
+    set({ currentUserId: userId });
+    await get().loadPersistedHistory();
+    await get().loadQuestionHistory();
+  },
 
   setApiKey: (key: string) => set({ apiKey: key.trim() }),
 
@@ -84,9 +104,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   loadPersistedHistory: async () => {
     try {
-      const savedMessages = await ChatHistoryDao.getAllMessages();
+      const uid = get().currentUserId || 'anonymous';
+      const savedMessages = await ChatHistoryDao.getAllMessages(uid);
       if (savedMessages && savedMessages.length > 0) {
         set({ messages: [INITIAL_WELCOME_MESSAGE, ...savedMessages] });
+      } else {
+        set({ messages: [INITIAL_WELCOME_MESSAGE] });
       }
     } catch (e) {
       console.warn('[useChatStore] loadPersistedHistory error:', e);
@@ -95,7 +118,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   loadQuestionHistory: async () => {
     try {
-      const items = await ChatHistoryDao.getQuestionHistory();
+      const uid = get().currentUserId || 'anonymous';
+      const items = await ChatHistoryDao.getQuestionHistory(uid);
       set({ questionHistory: items });
     } catch (e) {
       console.warn('[useChatStore] loadQuestionHistory error:', e);
@@ -113,7 +137,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   clearHistory: async () => {
     try {
-      await ChatHistoryDao.clearMessages();
+      const uid = get().currentUserId || 'anonymous';
+      await ChatHistoryDao.clearMessages(uid);
     } catch (e) {
       console.warn('[useChatStore] clearHistory error:', e);
     }
@@ -123,6 +148,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
   sendMessage: async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || get().isLoading) return;
+
+    const uid = get().currentUserId || 'anonymous';
 
     const userMsg: ChatMessage = {
       id: `msg_user_${Date.now()}`,
@@ -140,8 +167,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         : undefined,
     };
 
-    // Save user message to SQLite
-    void ChatHistoryDao.saveMessage(userMsg);
+    // Save user message to SQLite with user_id
+    void ChatHistoryDao.saveMessage(userMsg, uid);
 
     set((state) => ({
       messages: [...state.messages, userMsg],
@@ -164,8 +191,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         suggestedActions: response.suggestedActions,
       };
 
-      // Save AI response to SQLite
-      void ChatHistoryDao.saveMessage(aiMsg);
+      // Save AI response to SQLite with user_id
+      void ChatHistoryDao.saveMessage(aiMsg, uid);
 
       set((state) => ({
         messages: [...state.messages, aiMsg],
@@ -190,6 +217,3 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
   },
 }));
-
-// Auto-load history on store load
-void useChatStore.getState().loadPersistedHistory();

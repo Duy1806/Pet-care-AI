@@ -2,7 +2,7 @@
  * PawCare AI — Chat History DAO (SQLite)
  *
  * Persists AI Veterinary Assistant messages and user question history
- * to the local SQLite database (pawcare.db).
+ * to the local SQLite database (pawcare.db) with strict user isolation (multi-tenancy).
  */
 import { getDatabase } from './database';
 import type { ChatMessage } from '@/domain/entities/ChatMessage';
@@ -24,6 +24,7 @@ export class ChatHistoryDao {
       await db.execAsync(`
         CREATE TABLE IF NOT EXISTS chat_messages (
           id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL DEFAULT 'anonymous',
           session_id TEXT NOT NULL DEFAULT 'default',
           sender TEXT NOT NULL,
           text TEXT NOT NULL,
@@ -37,8 +38,16 @@ export class ChatHistoryDao {
           is_error INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS idx_chat_timestamp ON chat_messages(timestamp);
-        CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);
+        CREATE INDEX IF NOT EXISTS idx_chat_user_time ON chat_messages(user_id, timestamp);
       `);
+
+      // Migration: Ensure user_id column exists if table was created in older schema
+      try {
+        await db.execAsync(`ALTER TABLE chat_messages ADD COLUMN user_id TEXT NOT NULL DEFAULT 'anonymous';`);
+      } catch {
+        // user_id column already exists
+      }
+
       this.isInitialized = true;
     } catch (err) {
       console.warn('[ChatHistoryDao] Failed to ensure table:', err);
@@ -46,15 +55,15 @@ export class ChatHistoryDao {
   }
 
   /**
-   * Retrieve all messages for a given session in chronological order
+   * Retrieve all messages for a specific user in chronological order
    */
-  static async getAllMessages(sessionId = 'default'): Promise<ChatMessage[]> {
+  static async getAllMessages(userId = 'anonymous', sessionId = 'default'): Promise<ChatMessage[]> {
     await this.ensureTable();
     try {
       const db = await getDatabase();
       const rows = await db.getAllAsync<any>(
-        `SELECT * FROM chat_messages WHERE session_id = ? ORDER BY timestamp ASC`,
-        [sessionId]
+        `SELECT * FROM chat_messages WHERE user_id = ? AND session_id = ? ORDER BY timestamp ASC`,
+        [userId, sessionId]
       );
 
       return rows.map((r) => ({
@@ -82,18 +91,19 @@ export class ChatHistoryDao {
   }
 
   /**
-   * Persist a single chat message
+   * Persist a single chat message tied to a specific user
    */
-  static async saveMessage(msg: ChatMessage, sessionId = 'default'): Promise<void> {
+  static async saveMessage(msg: ChatMessage, userId = 'anonymous', sessionId = 'default'): Promise<void> {
     await this.ensureTable();
     try {
       const db = await getDatabase();
       await db.runAsync(
         `INSERT OR REPLACE INTO chat_messages 
-         (id, session_id, sender, text, timestamp, pet_id, pet_name, species, breed, weight_kg, suggested_actions, is_error)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, user_id, session_id, sender, text, timestamp, pet_id, pet_name, species, breed, weight_kg, suggested_actions, is_error)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           msg.id,
+          userId,
           sessionId,
           msg.sender,
           msg.text,
@@ -113,31 +123,32 @@ export class ChatHistoryDao {
   }
 
   /**
-   * Delete all messages for a session (Reset chat)
+   * Delete messages for a specific user
    */
-  static async clearMessages(sessionId = 'default'): Promise<void> {
+  static async clearMessages(userId = 'anonymous', sessionId = 'default'): Promise<void> {
     await this.ensureTable();
     try {
       const db = await getDatabase();
-      await db.runAsync(`DELETE FROM chat_messages WHERE session_id = ?`, [sessionId]);
+      await db.runAsync(`DELETE FROM chat_messages WHERE user_id = ? AND session_id = ?`, [userId, sessionId]);
     } catch (err) {
       console.warn('[ChatHistoryDao] clearMessages error:', err);
     }
   }
 
   /**
-   * Query distinct past user questions
+   * Query distinct past user questions for the active user only
    */
-  static async getQuestionHistory(): Promise<QuestionHistoryItem[]> {
+  static async getQuestionHistory(userId = 'anonymous'): Promise<QuestionHistoryItem[]> {
     await this.ensureTable();
     try {
       const db = await getDatabase();
       const rows = await db.getAllAsync<any>(
         `SELECT id, text, timestamp, pet_name 
          FROM chat_messages 
-         WHERE sender = 'user' 
+         WHERE user_id = ? AND sender = 'user' 
          ORDER BY timestamp DESC 
-         LIMIT 50`
+         LIMIT 50`,
+        [userId]
       );
 
       return rows.map((r) => ({
@@ -165,4 +176,3 @@ export class ChatHistoryDao {
     }
   }
 }
-

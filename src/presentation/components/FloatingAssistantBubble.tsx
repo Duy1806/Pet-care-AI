@@ -1,12 +1,12 @@
 /**
  * PawCare AI — Floating AI Veterinary Assistant Bubble
  *
- * Professional AI Chatbox interface modeled after modern LLM assistants (ChatGPT / Claude):
- * - Balanced, symmetric top app bar safely clear of Dynamic Island & Status Bar
- * - Soft horizontal pet filter chips (Miu, Nâu, Tất cả)
- * - Elevated capsule/pill input bar with upward send icon and generous home indicator clearance
+ * Professional AI Chatbox interface modeled faithfully after Google Gemini Mobile:
+ * - Floating detached capsule input bar with (+), Sparkle, clean placeholder, and Mic/Send icon
+ * - Gemini Hero Welcome view ("Chúng ta nên bắt đầu từ đâu nhỉ?")
+ * - Balanced, symmetric top app bar with zero Dynamic Island obstruction
+ * - Strict multi-user chat history isolation (switching accounts switches history)
  * - Persistent question history drawer via SQLite (pawcare.db)
- * - Draggable floating bubble on all screens with smooth haptic feedback
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -40,8 +40,8 @@ const BUBBLE_SIZE = 60;
 // Dynamic Island (iPhone 14 Pro/15/16) extends to 54pt.
 // We start the header at 62pt to guarantee 0% overlap with status bar icons.
 const HEADER_TOP_PADDING = Platform.OS === 'ios' ? 62 : (RNStatusBar.currentHeight || 24) + 14;
-// iPhone Home Indicator clearance & elevated floating distance
-const INPUT_BOTTOM_PADDING = Platform.OS === 'ios' ? 56 : 28;
+// iPhone Home Indicator clearance
+const INPUT_BOTTOM_PADDING = Platform.OS === 'ios' ? 32 : 16;
 
 export function FloatingAssistantBubble() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
@@ -71,6 +71,7 @@ export function FloatingAssistantBubble() {
   const [inputText, setInputText] = useState('');
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [tempApiKey, setTempApiKey] = useState(apiKey);
+  const [showQuickMenu, setShowQuickMenu] = useState(false);
 
   // Position for the floating bubble
   const defaultBottom = Platform.OS === 'ios' ? 95 : 80;
@@ -141,6 +142,7 @@ export function FloatingAssistantBubble() {
 
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setInputText('');
+    setShowQuickMenu(false);
     await sendMessage(text);
   };
 
@@ -172,7 +174,53 @@ export function FloatingAssistantBubble() {
   };
 
   const renderMessageItem = useCallback(
-    ({ item }: { item: ChatMessage }) => {
+    ({ item, index }: { item: ChatMessage; index: number }) => {
+      // If this is the initial welcome message and there are no other messages, render Gemini-style Hero
+      if (item.id === 'msg_welcome' && messages.length === 1) {
+        return (
+          <View style={styles.geminiHeroContainer}>
+            {/* 4-Color Gemini Sparkle */}
+            <View style={styles.sparkleHeroIconWrapper}>
+              <MaterialCommunityIcons name="star-four-points" size={46} color="#38BDF8" />
+            </View>
+
+            <Text style={[typo.headlineSmall, styles.geminiHeroTitle, { color: colors.text }]}>
+              {'Chúng ta nên bắt đầu\ntừ đâu nhỉ?'}
+            </Text>
+
+            <Text style={[typo.bodySmall, { color: colors.textSecondary, textAlign: 'center', marginTop: 8, paddingHorizontal: 20 }]}>
+              {activePetContext
+                ? `PawCare AI Doctor sẵn sàng tư vấn cho bé ${activePetContext.name}. Hãy chọn câu hỏi nhanh hoặc nhập trực tiếp bên dưới:`
+                : 'PawCare AI Doctor sẵn sàng tư vấn sức khỏe, dinh dưỡng và tiêm chủng cho thú cưng của bạn:'}
+            </Text>
+
+            {/* Quick Starter Chips */}
+            <View style={styles.heroChipsContainer}>
+              {item.suggestedActions?.map((action, idx) => (
+                <Pressable
+                  key={idx}
+                  onPress={() => handleActionClick(action)}
+                  style={[
+                    styles.heroChip,
+                    {
+                      backgroundColor: colors.surfaceElevated,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <MaterialCommunityIcons name="creation" size={16} color={colors.primary} style={{ marginRight: 8 }} />
+                  <Text style={[typo.bodyMedium, { color: colors.text, flex: 1, fontSize: 14 }]}>
+                    {action}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textTertiary} />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        );
+      }
+
+      // If initial welcome is in a longer thread, don't repeat the huge hero, render clean bubble
       const isUser = item.sender === 'user';
 
       return (
@@ -265,7 +313,7 @@ export function FloatingAssistantBubble() {
         </View>
       );
     },
-    [colors, typo]
+    [colors, typo, messages.length, activePetContext]
   );
 
   return (
@@ -458,34 +506,104 @@ export function FloatingAssistantBubble() {
             }
           />
 
-          {/* Bottom Input Area — Professional Capsule Floating Bar */}
+          {/* Quick Menu Popup if (+) is tapped */}
+          {showQuickMenu && (
+            <View style={[styles.quickMenuPopup, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
+              <Pressable
+                style={styles.quickMenuItem}
+                onPress={() => {
+                  setShowQuickMenu(false);
+                  closeChatModal();
+                  router.push('/(app)/breed-scanner' as any);
+                }}
+              >
+                <MaterialCommunityIcons name="camera-iris" size={20} color={colors.primary} />
+                <Text style={[typo.bodySmall, { color: colors.text, marginLeft: 10, fontWeight: '600' }]}>
+                  Quét nhận diện giống loài
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.quickMenuItem}
+                onPress={() => {
+                  setShowQuickMenu(false);
+                  closeChatModal();
+                  router.push('/(app)/nutrition' as any);
+                }}
+              >
+                <MaterialCommunityIcons name="food-drumstick" size={20} color="#EA580C" />
+                <Text style={[typo.bodySmall, { color: colors.text, marginLeft: 10, fontWeight: '600' }]}>
+                  Tính khẩu phần dinh dưỡng (RER)
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.quickMenuItem}
+                onPress={() => {
+                  setShowQuickMenu(false);
+                  closeChatModal();
+                  router.push('/vaccinations' as any);
+                }}
+              >
+                <MaterialCommunityIcons name="needle" size={20} color="#8B5CF6" />
+                <Text style={[typo.bodySmall, { color: colors.text, marginLeft: 10, fontWeight: '600' }]}>
+                  Sổ tiêm phòng & tẩy giun
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* Bottom Input Area — Google Gemini Floating Capsule */}
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
             style={[
-              styles.inputContainer,
+              styles.floatingInputWrapper,
               {
-                backgroundColor: colors.surface,
-                borderTopColor: colors.border,
                 paddingBottom: INPUT_BOTTOM_PADDING,
               },
             ]}
           >
             <View
               style={[
-                styles.capsuleInputRow,
+                styles.geminiCapsuleBar,
                 {
                   backgroundColor: colors.surfaceElevated,
                   borderColor: colors.border,
                 },
               ]}
             >
+              {/* Left (+) Button */}
+              <Pressable
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowQuickMenu(!showQuickMenu);
+                }}
+                hitSlop={8}
+                style={styles.geminiLeftIconBtn}
+              >
+                <MaterialCommunityIcons
+                  name={showQuickMenu ? 'close' : 'plus'}
+                  size={24}
+                  color={colors.textSecondary}
+                />
+              </Pressable>
+
+              {/* Gemini Star Icon */}
+              <MaterialCommunityIcons
+                name="star-four-points"
+                size={18}
+                color={colors.primary}
+                style={{ marginRight: 6 }}
+              />
+
+              {/* Main Input Text Field */}
               <TextInput
                 value={inputText}
                 onChangeText={setInputText}
                 placeholder={
                   activePetContext
-                    ? `Hỏi tình trạng của ${activePetContext.name}...`
+                    ? `Nhập câu hỏi về ${activePetContext.name}...`
                     : 'Nhập câu hỏi hoặc triệu chứng...'
                 }
                 placeholderTextColor={colors.textTertiary}
@@ -498,22 +616,36 @@ export function FloatingAssistantBubble() {
                 maxLength={500}
                 editable={!isLoading}
               />
-              <Pressable
-                onPress={() => void handleSend()}
-                disabled={!inputText.trim() || isLoading}
-                style={[
-                  styles.sendCircleButton,
-                  {
-                    backgroundColor: inputText.trim() && !isLoading ? colors.primary : colors.border,
-                  },
-                ]}
-              >
-                {isLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <MaterialCommunityIcons name="arrow-up" size={20} color="#FFFFFF" />
-                )}
-              </Pressable>
+
+              {/* Right Action: Mic if empty, Up-arrow send button when typing */}
+              {inputText.trim().length > 0 || isLoading ? (
+                <Pressable
+                  onPress={() => void handleSend()}
+                  disabled={!inputText.trim() || isLoading}
+                  style={[
+                    styles.geminiSendBtn,
+                    {
+                      backgroundColor: colors.primary,
+                    },
+                  ]}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <MaterialCommunityIcons name="arrow-up" size={20} color="#FFFFFF" />
+                  )}
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                  hitSlop={8}
+                  style={styles.geminiMicBtn}
+                >
+                  <MaterialCommunityIcons name="microphone-outline" size={22} color={colors.textSecondary} />
+                </Pressable>
+              )}
             </View>
           </KeyboardAvoidingView>
 
@@ -773,6 +905,38 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 24,
   },
+  geminiHeroContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 8,
+  },
+  sparkleHeroIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  geminiHeroTitle: {
+    textAlign: 'center',
+    fontWeight: '700',
+    lineHeight: 32,
+  },
+  heroChipsContainer: {
+    width: '100%',
+    marginTop: 24,
+    gap: 10,
+  },
+  heroChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
   messageRow: {
     flexDirection: 'row',
     marginBottom: 16,
@@ -837,24 +1001,48 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingLeft: 40,
   },
-  inputContainer: {
-    borderTopWidth: 1,
-    paddingHorizontal: 16,
-    paddingTop: 10,
+  quickMenuPopup: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  capsuleInputRow: {
+  quickMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderRadius: 26,
-    paddingLeft: 16,
-    paddingRight: 5,
-    paddingVertical: Platform.OS === 'ios' ? 5 : 3,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  floatingInputWrapper: {
+    paddingHorizontal: 16,
+  },
+  geminiCapsuleBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.2,
+    borderRadius: 30,
+    paddingLeft: 10,
+    paddingRight: 6,
+    paddingVertical: Platform.OS === 'ios' ? 6 : 4,
+    minHeight: 52,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  geminiLeftIconBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   textInput: {
     flex: 1,
@@ -863,13 +1051,18 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     fontSize: 15,
   },
-  sendCircleButton: {
+  geminiMicBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  geminiSendBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 6,
   },
   historyModalOverlay: {
     flex: 1,
