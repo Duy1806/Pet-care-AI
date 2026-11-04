@@ -5,7 +5,7 @@
  * Follows platform design guidelines for branded buttons.
  */
 import React, { useCallback } from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -25,6 +25,10 @@ interface SocialButtonProps {
   onPress: () => void;
   /** Additional style */
   style?: StyleProp<ViewStyle>;
+  /** Loading state */
+  loading?: boolean;
+  /** Disabled state */
+  disabled?: boolean;
 }
 
 const providerConfig = {
@@ -40,23 +44,26 @@ const providerConfig = {
   },
 };
 
-export function SocialButton({ provider, onPress, style }: SocialButtonProps) {
+export function SocialButton({ provider, onPress, style, loading, disabled }: SocialButtonProps) {
   const { colors, typography: typo, radius, layout: layoutConst, applyShadow: shadow, shadows: shadowPresets, isDark } = useAppTheme();
   const scale = useSharedValue(1);
   const config = providerConfig[provider];
 
   const handlePressIn = () => {
+    if (disabled || loading) return;
     scale.value = withSpring(0.97, { damping: 15, stiffness: 300 });
   };
 
   const handlePressOut = () => {
+    if (disabled || loading) return;
     scale.value = withSpring(1, { damping: 15, stiffness: 300 });
   };
 
   const handlePress = useCallback(() => {
+    if (disabled || loading) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress();
-  }, [onPress]);
+  }, [onPress, disabled, loading]);
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -70,9 +77,10 @@ export function SocialButton({ provider, onPress, style }: SocialButtonProps) {
       onPress={handlePress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      disabled={disabled || loading}
       accessibilityLabel={config.label}
       accessibilityRole="button"
-      style={[animStyle, style]}
+      style={[animStyle, style, (disabled || loading) && { opacity: 0.7 }]}
     >
       <View
         style={[
@@ -86,14 +94,18 @@ export function SocialButton({ provider, onPress, style }: SocialButtonProps) {
           },
         ]}
       >
-        <MaterialCommunityIcons
-          name={config.icon}
-          size={layoutConst.iconSize}
-          color={appleIconColor}
-          style={styles.icon}
-        />
+        {loading ? (
+          <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 8 }} />
+        ) : (
+          <MaterialCommunityIcons
+            name={config.icon}
+            size={layoutConst.iconSize}
+            color={appleIconColor}
+            style={styles.icon}
+          />
+        )}
         <Text style={[typo.labelLarge, { color: colors.text }]}>
-          {config.label}
+          {loading ? 'Đang kết nối Google...' : config.label}
         </Text>
       </View>
     </AnimatedPressable>

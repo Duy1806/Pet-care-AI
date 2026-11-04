@@ -72,6 +72,24 @@ export class AuthRepositoryMock implements AuthRepository {
     return { user: entry.user, session };
   }
 
+  async signInWithGoogle(): Promise<LoginResult | null> {
+    await delay();
+    const user: User = {
+      id: `google-user-${Date.now()}`,
+      email: 'user.google@gmail.com',
+      fullName: 'Google Pet Care User',
+      phone: '',
+      role: 'owner',
+      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+      preferredTheme: 'system',
+      petPreferences: [],
+      createdAt: new Date().toISOString(),
+    };
+    const session = createSession(user);
+    currentSession = session;
+    return { user, session };
+  }
+
   async signUp(params: SignUpParams): Promise<RegisterResult> {
     await delay();
     if (mockUsers.has(params.email)) {

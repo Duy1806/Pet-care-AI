@@ -72,7 +72,6 @@ function RootNavigator() {
       const isRecovery =
         parsed.type === 'recovery' ||
         parsed.step === 'new-password' ||
-        Boolean(parsed.access_token && parsed.refresh_token) ||
         urlStr.includes('recovery') ||
         urlStr.includes('forgot-password');
 
@@ -82,8 +81,13 @@ function RootNavigator() {
             access_token: parsed.access_token,
             refresh_token: parsed.refresh_token,
           });
-          useAuthStore.setState({ forgotPasswordStep: 'new-password' });
-          router.replace('/(auth)/forgot-password?step=new-password' as any);
+          if (isRecovery) {
+            useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+            router.replace('/(auth)/forgot-password?step=new-password' as any);
+          } else {
+            // OAuth or Magic Link sign in -> Initialize session
+            await useAuthStore.getState().initialize();
+          }
           return;
         } catch {
           // ignore session setting failure
@@ -91,8 +95,13 @@ function RootNavigator() {
       } else if (parsed.code) {
         try {
           await supabase.auth.exchangeCodeForSession(parsed.code);
-          useAuthStore.setState({ forgotPasswordStep: 'new-password' });
-          router.replace('/(auth)/forgot-password?step=new-password' as any);
+          if (isRecovery) {
+            useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+            router.replace('/(auth)/forgot-password?step=new-password' as any);
+          } else {
+            // OAuth sign in -> Initialize session
+            await useAuthStore.getState().initialize();
+          }
           return;
         } catch {
           // ignore exchange code failure

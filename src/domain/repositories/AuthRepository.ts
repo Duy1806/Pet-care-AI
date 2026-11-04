@@ -16,6 +16,9 @@ export interface AuthRepository {
   /** Sign in with email and password */
   signIn(email: string, password: string): Promise<LoginResult>;
 
+  /** Sign in using Google OAuth */
+  signInWithGoogle(): Promise<LoginResult | null>;
+
   /** Create a new account */
   signUp(params: SignUpParams): Promise<RegisterResult>;
 

@@ -44,6 +44,8 @@ interface AuthState {
   initialize: () => Promise<void>;
   /** Sign in with email and password */
   login: (email: string, password: string) => Promise<boolean>;
+  /** Sign in using Google OAuth */
+  loginWithGoogle: () => Promise<boolean>;
   /** Create a new account */
   register: (params: SignUpParams) => Promise<'success' | 'requires_verification' | false>;
   /** Verify OTP after sign up */
@@ -108,6 +110,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return true;
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Đã xảy ra lỗi';
+      set({ isLoading: false, error: message });
+      return false;
+    }
+  },
+
+  loginWithGoogle: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      const result = await authRepository.signInWithGoogle();
+      if (result) {
+        set({
+          user: result.user,
+          session: result.session,
+          isLoading: false,
+        });
+        return true;
+      }
+      set({ isLoading: false });
+      return false;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Đã xảy ra lỗi khi đăng nhập với Google';
       set({ isLoading: false, error: message });
       return false;
     }

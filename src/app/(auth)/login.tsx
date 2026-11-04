@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
 import { AuthHeader } from '@/presentation/components/AuthHeader';
 import { AppTextField } from '@/presentation/components/AppTextField';
@@ -40,8 +41,9 @@ import { loginSchema, type LoginFormData } from '@/presentation/validation';
 export default function LoginScreen() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { login, isLoading, error, clearError, resendSignUpOtp } = useAuthStore();
+  const { login, loginWithGoogle, isLoading, error, clearError, resendSignUpOtp } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const {
     control,
@@ -75,6 +77,24 @@ export default function LoginScreen() {
     },
     [login],
   );
+
+  const handleGoogleLogin = useCallback(async () => {
+    setIsGoogleLoading(true);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const success = await loginWithGoogle();
+      if (success) {
+        const loggedUser = useAuthStore.getState().user;
+        if (loggedUser?.role === 'admin') {
+          router.replace('/admin' as any);
+        } else {
+          router.replace('/(app)' as any);
+        }
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  }, [loginWithGoogle]);
 
   const handleForgotPassword = useCallback(() => {
     router.push('/(auth)/forgot-password' as any);
@@ -268,7 +288,9 @@ export default function LoginScreen() {
             <Animated.View entering={FadeInDown.delay(600).duration(400)}>
               <SocialButton
                 provider="google"
-                onPress={() => {}}
+                onPress={handleGoogleLogin}
+                loading={isGoogleLoading}
+                disabled={isLoading || isGoogleLoading}
               />
             </Animated.View>
 
