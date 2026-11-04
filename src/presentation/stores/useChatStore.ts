@@ -8,6 +8,9 @@ import { create } from 'zustand';
 import type { ChatMessage } from '@/domain/entities/ChatMessage';
 import { GeminiAssistantService, type PetContext } from '@/domain/services/GeminiAssistantService';
 import { ChatHistoryDao, type QuestionHistoryItem } from '@/data/local/ChatHistoryDao';
+import { ChatRepositorySupabase } from '@/data/repositories/ChatRepositorySupabase';
+
+const chatRepo = new ChatRepositorySupabase();
 
 interface ChatStoreState {
   currentUserId: string | null;
@@ -109,6 +112,17 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       if (savedMessages && savedMessages.length > 0) {
         set({ messages: [INITIAL_WELCOME_MESSAGE, ...savedMessages] });
       } else {
+        // If local SQLite is empty and user is authenticated, sync from Supabase cloud
+        if (uid !== 'anonymous') {
+          const remoteMessages = await chatRepo.getMessages(uid);
+          if (remoteMessages && remoteMessages.length > 0) {
+            for (const rm of remoteMessages) {
+              void ChatHistoryDao.saveMessage(rm, uid);
+            }
+            set({ messages: [INITIAL_WELCOME_MESSAGE, ...remoteMessages] });
+            return;
+          }
+        }
         set({ messages: [INITIAL_WELCOME_MESSAGE] });
       }
     } catch (e) {
@@ -128,7 +142,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   deleteQuestion: async (id: string) => {
     try {
+      const uid = get().currentUserId || 'anonymous';
       await ChatHistoryDao.deleteQuestion(id);
+      if (uid !== 'anonymous') {
+        void chatRepo.deleteMessage(id, uid);
+      }
       await get().loadQuestionHistory();
     } catch (e) {
       console.warn('[useChatStore] deleteQuestion error:', e);
@@ -139,6 +157,9 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     try {
       const uid = get().currentUserId || 'anonymous';
       await ChatHistoryDao.clearMessages(uid);
+      if (uid !== 'anonymous') {
+        void chatRepo.clearMessages(uid);
+      }
     } catch (e) {
       console.warn('[useChatStore] clearHistory error:', e);
     }
@@ -167,8 +188,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         : undefined,
     };
 
-    // Save user message to SQLite with user_id
+    // Save user message to SQLite with user_id & Supabase cloud
     void ChatHistoryDao.saveMessage(userMsg, uid);
+    if (uid !== 'anonymous') {
+      void chatRepo.saveMessage(userMsg, uid);
+    }
 
     set((state) => ({
       messages: [...state.messages, userMsg],
@@ -191,8 +215,11 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         suggestedActions: response.suggestedActions,
       };
 
-      // Save AI response to SQLite with user_id
+      // Save AI response to SQLite with user_id & Supabase cloud
       void ChatHistoryDao.saveMessage(aiMsg, uid);
+      if (uid !== 'anonymous') {
+        void chatRepo.saveMessage(aiMsg, uid);
+      }
 
       set((state) => ({
         messages: [...state.messages, aiMsg],
