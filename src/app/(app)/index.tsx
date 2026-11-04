@@ -35,6 +35,7 @@ import { ThemeToggle } from '@/presentation/components/ThemeToggle';
 import { NetworkBanner } from '@/presentation/components/NetworkBanner';
 import { AddPetModal } from '@/presentation/components/AddPetModal';
 import { AddCareScheduleModal } from '@/presentation/components/AddCareScheduleModal';
+import { CareHistoryModal } from '@/presentation/components/CareHistoryModal';
 import { CARE_SUGGESTIONS, type CareCategory } from '@/domain/entities/CareReminder';
 
 const CATEGORY_COLORS: Record<CareCategory, string> = {
@@ -61,6 +62,7 @@ export default function HomeScreen() {
     toggleReminder,
     deleteReminder,
     addQuickSuggestion,
+    openCareHistoryModal,
   } = useCareScheduleStore();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -668,26 +670,52 @@ export default function HomeScreen() {
               )}
             </View>
 
-            <Pressable
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setIsCareModalOpen(true);
-              }}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: colors.primary,
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: radius.full,
-                gap: 4,
-              }}
-            >
-              <MaterialCommunityIcons name="plus" size={16} color={colors.onPrimary} />
-              <Text style={[typo.labelSmall, { color: colors.onPrimary, fontWeight: '700' }]}>
-                Lên lịch
-              </Text>
-            </Pressable>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {/* Lịch sử chăm sóc */}
+              <Pressable
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  openCareHistoryModal();
+                }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: colors.surfaceElevated,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: radius.full,
+                  gap: 4,
+                }}
+              >
+                <MaterialCommunityIcons name="calendar-clock" size={16} color={colors.primary} />
+                <Text style={[typo.labelSmall, { color: colors.primary, fontWeight: '700' }]}>
+                  Lịch sử
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setIsCareModalOpen(true);
+                }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: colors.primary,
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: radius.full,
+                  gap: 4,
+                }}
+              >
+                <MaterialCommunityIcons name="plus" size={16} color={colors.onPrimary} />
+                <Text style={[typo.labelSmall, { color: colors.onPrimary, fontWeight: '700' }]}>
+                  Lên lịch
+                </Text>
+              </Pressable>
+            </View>
           </View>
 
           {isCareLoading && reminders.length === 0 ? (
@@ -1060,6 +1088,9 @@ export default function HomeScreen() {
         pet={activePet}
         onClose={() => setIsCareModalOpen(false)}
       />
+
+      {/* Care History Modal (Lịch sử chăm sóc theo ngày) */}
+      <CareHistoryModal />
     </View>
   );
 }

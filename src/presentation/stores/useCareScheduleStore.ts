@@ -2,7 +2,7 @@
  * PawCare AI — Care Schedule Store (Zustand)
  *
  * Manages daily care tasks per pet, custom scheduling by owner,
- * and smart care suggestions.
+ * and comprehensive care history tracking (food, activities, meds by date).
  */
 import { create } from 'zustand';
 import type { CareCategory, CareReminder, CareSuggestion } from '@/domain/entities/CareReminder';
@@ -17,6 +17,14 @@ interface CareScheduleState {
   isLoading: boolean;
   activePetId: string | null;
 
+  // Care History state
+  isCareHistoryModalOpen: boolean;
+  selectedHistoryDate: string;
+  historyReminders: CareReminder[];
+  allHistoryRecords: CareReminder[];
+  isHistoryLoading: boolean;
+
+  // Actions
   loadReminders: (petId: string, date?: string) => Promise<void>;
   addReminder: (params: {
     petId: string;
@@ -29,12 +37,65 @@ interface CareScheduleState {
   addQuickSuggestion: (petId: string, suggestion: CareSuggestion, date?: string) => Promise<void>;
   toggleReminder: (id: string) => Promise<void>;
   deleteReminder: (id: string) => Promise<void>;
+
+  // History Actions
+  openCareHistoryModal: () => void;
+  closeCareHistoryModal: () => void;
+  setSelectedHistoryDate: (date: string) => Promise<void>;
+  loadHistoryForDate: (petId: string, date: string) => Promise<void>;
+  loadAllHistory: (petId: string) => Promise<void>;
 }
 
 export const useCareScheduleStore = create<CareScheduleState>((set, get) => ({
   reminders: [],
   isLoading: false,
   activePetId: null,
+
+  isCareHistoryModalOpen: false,
+  selectedHistoryDate: getTodayString(),
+  historyReminders: [],
+  allHistoryRecords: [],
+  isHistoryLoading: false,
+
+  openCareHistoryModal: () => {
+    set({ isCareHistoryModalOpen: true });
+    const petId = get().activePetId;
+    if (petId) {
+      void get().loadAllHistory(petId);
+      void get().loadHistoryForDate(petId, get().selectedHistoryDate);
+    }
+  },
+
+  closeCareHistoryModal: () => set({ isCareHistoryModalOpen: false }),
+
+  setSelectedHistoryDate: async (date: string) => {
+    set({ selectedHistoryDate: date });
+    const petId = get().activePetId;
+    if (petId) {
+      await get().loadHistoryForDate(petId, date);
+    }
+  },
+
+  loadHistoryForDate: async (petId: string, date: string) => {
+    if (!petId) return;
+    set({ isHistoryLoading: true });
+    try {
+      const list = await careReminderRepository.getByPetIdAndDate(petId, date);
+      set({ historyReminders: list, isHistoryLoading: false });
+    } catch {
+      set({ isHistoryLoading: false });
+    }
+  },
+
+  loadAllHistory: async (petId: string) => {
+    if (!petId) return;
+    try {
+      const all = await careReminderRepository.getAllByPetId(petId);
+      set({ allHistoryRecords: all });
+    } catch (e) {
+      console.warn('[useCareScheduleStore] loadAllHistory error:', e);
+    }
+  },
 
   loadReminders: async (petId: string, date?: string) => {
     if (!petId) {
@@ -65,8 +126,17 @@ export const useCareScheduleStore = create<CareScheduleState>((set, get) => ({
       date: targetDate,
     });
 
+    const isCurrentDate = targetDate === getTodayString();
+
     set((state) => ({
-      reminders: [...state.reminders, created].sort((a, b) => a.time.localeCompare(b.time)),
+      reminders: isCurrentDate
+        ? [...state.reminders, created].sort((a, b) => a.time.localeCompare(b.time))
+        : state.reminders,
+      historyReminders:
+        targetDate === state.selectedHistoryDate
+          ? [...state.historyReminders, created].sort((a, b) => a.time.localeCompare(b.time))
+          : state.historyReminders,
+      allHistoryRecords: [created, ...state.allHistoryRecords],
     }));
 
     return created;
@@ -91,21 +161,36 @@ export const useCareScheduleStore = create<CareScheduleState>((set, get) => ({
       date: targetDate,
     });
 
+    const isCurrentDate = targetDate === getTodayString();
+
     set((state) => ({
-      reminders: [...state.reminders, created].sort((a, b) => a.time.localeCompare(b.time)),
+      reminders: isCurrentDate
+        ? [...state.reminders, created].sort((a, b) => a.time.localeCompare(b.time))
+        : state.reminders,
+      historyReminders:
+        targetDate === state.selectedHistoryDate
+          ? [...state.historyReminders, created].sort((a, b) => a.time.localeCompare(b.time))
+          : state.historyReminders,
+      allHistoryRecords: [created, ...state.allHistoryRecords],
     }));
   },
 
   toggleReminder: async (id: string) => {
     const currentList = get().reminders;
-    const target = currentList.find((r) => r.id === id);
+    const historyList = get().historyReminders;
+
+    const target = currentList.find((r) => r.id === id) || historyList.find((r) => r.id === id);
     if (!target) return;
 
     const newDone = !target.isDone;
 
-    // Optimistic UI update
+    // Optimistic UI update on both today's list and history view
     set({
       reminders: currentList.map((r) => (r.id === id ? { ...r, isDone: newDone } : r)),
+      historyReminders: historyList.map((r) => (r.id === id ? { ...r, isDone: newDone } : r)),
+      allHistoryRecords: get().allHistoryRecords.map((r) =>
+        r.id === id ? { ...r, isDone: newDone } : r
+      ),
     });
 
     await careReminderRepository.updateDone(id, newDone);
@@ -114,9 +199,10 @@ export const useCareScheduleStore = create<CareScheduleState>((set, get) => ({
   deleteReminder: async (id: string) => {
     set((state) => ({
       reminders: state.reminders.filter((r) => r.id !== id),
+      historyReminders: state.historyReminders.filter((r) => r.id !== id),
+      allHistoryRecords: state.allHistoryRecords.filter((r) => r.id !== id),
     }));
 
     await careReminderRepository.delete(id);
   },
 }));
-

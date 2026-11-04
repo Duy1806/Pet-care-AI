@@ -89,6 +89,48 @@ export class CareReminderRepositorySupabase {
     }
   }
 
+  async getAllByPetId(petId: string): Promise<CareReminder[]> {
+    if (!UUID_REGEX.test(petId)) {
+      return localMemoryStore.get(petId) || [];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('reminders')
+        .select('*')
+        .eq('pet_id', petId)
+        .is('deleted_at', null)
+        .order('remind_at', { ascending: false });
+
+      if (error) {
+        throw new Error(mapSupabaseError(error));
+      }
+
+      return (data || []).map((row: any) => {
+        const timePart = row.remind_at
+          ? new Date(row.remind_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
+          : '08:00';
+        const datePart = row.remind_at ? row.remind_at.split('T')[0] : '';
+        const kind = (row.kind as CareCategory) || 'other';
+
+        return {
+          id: row.id,
+          petId: row.pet_id,
+          ownerId: row.owner_id,
+          title: row.title,
+          time: timePart,
+          category: kind,
+          icon: getCategoryIcon(kind, row.title),
+          isDone: Boolean(row.is_done),
+          date: datePart,
+          createdAt: row.created_at,
+        };
+      });
+    } catch {
+      return localMemoryStore.get(petId) || [];
+    }
+  }
+
   async create(reminder: Omit<CareReminder, 'id' | 'createdAt'>): Promise<CareReminder> {
     const id = UUID_REGEX.test(reminder.petId)
       ? 'tmp_' + Date.now() + Math.random().toString(36).substring(2, 6)

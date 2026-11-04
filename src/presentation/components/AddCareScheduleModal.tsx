@@ -28,6 +28,7 @@ import type { Pet } from '@/domain/entities/Pet';
 interface AddCareScheduleModalProps {
   visible: boolean;
   pet: Pet | null;
+  targetDate?: string;
   onClose: () => void;
   onSuccess?: () => void;
 }
@@ -44,7 +45,7 @@ const CATEGORIES: { key: CareCategory; label: string; icon: keyof typeof Materia
 
 const POPULAR_TIMES = ['07:00', '07:30', '08:00', '12:00', '17:30', '18:30', '19:30', '21:00'];
 
-export function AddCareScheduleModal({ visible, pet, onClose, onSuccess }: AddCareScheduleModalProps) {
+export function AddCareScheduleModal({ visible, pet, targetDate, onClose, onSuccess }: AddCareScheduleModalProps) {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
   const { addReminder } = useCareScheduleStore();
 
@@ -99,6 +100,7 @@ export function AddCareScheduleModal({ visible, pet, onClose, onSuccess }: AddCa
         time: time.trim(),
         category,
         icon: selectedIcon,
+        date: targetDate,
       });
 
       // Reset
@@ -135,7 +137,7 @@ export function AddCareScheduleModal({ visible, pet, onClose, onSuccess }: AddCa
         >
           <View style={{ flex: 1 }}>
             <Text style={[typo.titleLarge, { color: colors.text, fontWeight: '800' }]}>
-              Lên lịch chăm sóc hôm nay
+              {targetDate ? `Lên lịch chăm sóc (${targetDate})` : 'Lên lịch chăm sóc hôm nay'}
             </Text>
             <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>
               {pet ? `Dành riêng cho bé ${pet.name} (${pet.species === 'dog' ? 'Chó' : 'Mèo'})` : 'Chăm sóc thú cưng chu đáo'}

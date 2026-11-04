@@ -13,6 +13,16 @@ export type CareCategory =
   | 'water'
   | 'other';
 
+export const CATEGORY_COLORS: Record<CareCategory, string> = {
+  feeding: '#EA580C',
+  medication: '#8B5CF6',
+  exercise: '#16A34A',
+  grooming: '#DB2777',
+  water: '#0284C7',
+  hygiene: '#059669',
+  other: '#64748B',
+};
+
 export interface CareReminder {
   id: string;
   petId: string;

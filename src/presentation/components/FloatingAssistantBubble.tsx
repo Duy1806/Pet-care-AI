@@ -26,6 +26,7 @@ import {
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 
@@ -45,6 +46,7 @@ const INPUT_BOTTOM_PADDING = Platform.OS === 'ios' ? 76 : 36;
 
 export function FloatingAssistantBubble() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList>(null);
 
   const {
@@ -568,6 +570,7 @@ export function FloatingAssistantBubble() {
                 {
                   backgroundColor: colors.surfaceElevated,
                   borderColor: colors.border,
+                  marginBottom: Math.max(insets.bottom, 24) + 26,
                 },
               ]}
             >
