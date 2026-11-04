@@ -16,11 +16,12 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StatusBar as RNStatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
@@ -45,7 +46,16 @@ function formatDateVi(dateStr: string): string {
 
 export function CareHistoryModal() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { selectedPet } = usePetStore();
+
+  // Dynamic Island on iPhone extends down to 54pt.
+  // React Native Modal presentationStyle="fullScreen" can fail to receive SafeAreaView top inset.
+  // We enforce a rock-solid minimum top padding of 62pt to guarantee 0% obstruction by Dynamic Island/Status Bar.
+  const headerTopPadding = Platform.OS === 'ios'
+    ? Math.max(insets.top, 58) + 4
+    : (RNStatusBar.currentHeight || 24) + 12;
+  const bottomPadding = Math.max(insets.bottom, 20) + 16;
 
   const {
     isCareHistoryModalOpen,
@@ -112,9 +122,18 @@ export function CareHistoryModal() {
       presentationStyle="fullScreen"
       onRequestClose={closeCareHistoryModal}
     >
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
-        {/* Top Header */}
-        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        {/* Top Header — Guarantees 0% Dynamic Island overlap */}
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: colors.surface,
+              borderBottomColor: colors.border,
+              paddingTop: headerTopPadding,
+            },
+          ]}
+        >
           <Pressable
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -156,7 +175,11 @@ export function CareHistoryModal() {
           </Pressable>
         </View>
 
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: bottomPadding }}
+        >
           {/* Horizontal Date Selector Strip */}
           <View style={[styles.dateStripContainer, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}>
@@ -501,7 +524,7 @@ export function CareHistoryModal() {
           targetDate={selectedHistoryDate}
           onClose={() => setIsAddModalOpen(false)}
         />
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -514,7 +537,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
   },
   backBtn: {
