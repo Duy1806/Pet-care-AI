@@ -183,6 +183,12 @@ function RootNavigator() {
             animation: 'slide_from_right',
           }}
         />
+        <Stack.Screen
+          name="admin"
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
       </Stack>
       {Boolean(user && session) && <FloatingAssistantBubble />}
     </>

@@ -35,6 +35,7 @@ import { usePetStore } from '@/presentation/stores/usePetStore';
 import { ThemeToggle } from '@/presentation/components/ThemeToggle';
 import { PrimaryButton } from '@/presentation/components/PrimaryButton';
 import { AddPetModal } from '@/presentation/components/AddPetModal';
+import { adminRepo } from '@/data/repositories/AdminRepository';
 
 export default function ProfileScreen() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
@@ -321,6 +322,43 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* VIP Admin Portal Card (Dành riêng cho Quản trị viên) */}
+        {user?.role === 'admin' ? (
+          <Pressable
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/admin' as any);
+            }}
+            style={[
+              styles.adminVipCard,
+              {
+                backgroundColor: '#FEF3C7',
+                borderColor: '#F59E0B',
+                marginTop: spacing.md,
+                borderRadius: radius.xl,
+              },
+            ]}
+          >
+            <View style={[styles.adminVipIconCircle, { backgroundColor: '#F59E0B' }]}>
+              <MaterialCommunityIcons name="shield-crown" size={24} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={[typo.titleSmall, { color: '#92400E', fontWeight: '800' }]}>
+                  Bảng Điều Khiển Admin Portal
+                </Text>
+                <View style={{ backgroundColor: '#D97706', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, marginLeft: 6 }}>
+                  <Text style={{ fontSize: 10, color: '#FFFFFF', fontWeight: '800' }}>VIP</Text>
+                </View>
+              </View>
+              <Text style={[typo.caption, { color: '#B45309', marginTop: 2 }]}>
+                Giám sát KPI, người dùng, tư vấn AI & danh mục giống loài
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={24} color="#92400E" />
+          </Pressable>
+        ) : null}
+
         {/* My Pets Section */}
         <View style={{ marginTop: spacing.lg }}>
           <View style={styles.sectionHeader}>
@@ -457,7 +495,7 @@ export default function ProfileScreen() {
             {/* Setting 2.5: Sổ tiêm chủng */}
             <Pressable
               onPress={() => router.push('/add-vaccination' as any)}
-              style={[styles.settingRow, { padding: spacing.md }]}
+              style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 1, padding: spacing.md }]}
             >
               <View style={styles.settingLeft}>
                 <MaterialCommunityIcons name="needle" size={22} color="#0284C7" />
@@ -467,6 +505,62 @@ export default function ProfileScreen() {
                 </View>
               </View>
               <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textTertiary} />
+            </Pressable>
+
+            {/* Setting 3: Trung tâm Quản trị Admin (Chỉ hiển thị khi là admin) */}
+            {user?.role === 'admin' && (
+              <Pressable
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push('/admin' as any);
+                }}
+                style={[styles.settingRow, { borderBottomColor: colors.border, borderBottomWidth: 1, padding: spacing.md }]}
+              >
+                <View style={styles.settingLeft}>
+                  <MaterialCommunityIcons name="shield-crown-outline" size={22} color="#D97706" />
+                  <View style={{ marginLeft: spacing.sm }}>
+                    <Text style={[typo.labelLarge, { color: '#B45309', fontWeight: '700' }]}>Trung tâm Quản trị Admin</Text>
+                    <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>Xem báo cáo KPI, người dùng & AI</Text>
+                  </View>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#D97706" />
+              </Pressable>
+            )}
+
+            {/* Setting 4: Chuyển vai trò thử nghiệm (Owner <-> Admin) */}
+            <Pressable
+              onPress={async () => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                const nextRole = user?.role === 'admin' ? 'owner' : 'admin';
+                try {
+                  if (user) {
+                    await adminRepo.updateUserRole(user.id, nextRole);
+                    useAuthStore.setState((s) => ({
+                      user: s.user ? { ...s.user, role: nextRole } : null,
+                    }));
+                    Alert.alert(
+                      'Chuyển vai trò thành công',
+                      `Tài khoản đã đổi sang quyền: ${nextRole === 'admin' ? 'Quản trị viên (Admin)' : 'Chủ nuôi tiêu chuẩn (Owner)'}.`
+                    );
+                  }
+                } catch (err: any) {
+                  Alert.alert('Lỗi cập nhật', err?.message || 'Không thể đổi vai trò');
+                }
+              }}
+              style={[styles.settingRow, { padding: spacing.md }]}
+            >
+              <View style={styles.settingLeft}>
+                <MaterialCommunityIcons name="account-switch-outline" size={22} color={colors.primary} />
+                <View style={{ marginLeft: spacing.sm }}>
+                  <Text style={[typo.labelLarge, { color: colors.text }]}>Vai trò: {user?.role === 'admin' ? 'Quản trị viên (Admin)' : 'Chủ nuôi (Owner)'}</Text>
+                  <Text style={[typo.bodySmall, { color: colors.textSecondary }]}>Chạm để đổi sang {user?.role === 'admin' ? 'Owner' : 'Admin'}</Text>
+                </View>
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: user?.role === 'admin' ? '#FEF3C7' : colors.primaryContainer }]}>
+                <Text style={[typo.labelSmall, { color: user?.role === 'admin' ? '#B45309' : colors.primary, fontWeight: '700' }]}>
+                  {user?.role === 'admin' ? 'Admin' : 'Owner'}
+                </Text>
+              </View>
             </Pressable>
           </View>
         </View>
@@ -789,6 +883,24 @@ const styles = StyleSheet.create({
   cancelModalBtn: {
     borderWidth: 1,
     paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adminVipCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderWidth: 1.5,
+    elevation: 2,
+    shadowColor: '#D97706',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+  },
+  adminVipIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
