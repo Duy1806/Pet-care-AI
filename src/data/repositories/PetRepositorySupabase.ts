@@ -5,8 +5,7 @@
  */
 import type { Pet } from '../../domain/entities/Pet';
 import type { PetRepository, CreatePetInput } from '../../domain/repositories/PetRepository';
-import * as SecureStore from 'expo-secure-store';
-import { supabase } from '../remote/supabaseClient';
+import { supabase, ExpoSecureStoreAdapter } from '../remote/supabaseClient';
 import { mapSupabaseError } from '../remote/supabaseErrors';
 import { getDatabase } from '../local/database';
 import { PetDao, type LocalPet } from '../local/PetDao';
@@ -81,7 +80,7 @@ async function resolveCurrentUserId(explicitId?: string): Promise<string> {
     if (data?.session?.user?.id) return data.session.user.id;
   } catch {}
   try {
-    const cached = await SecureStore.getItemAsync('petcare_last_user_session');
+    const cached = await ExpoSecureStoreAdapter.getItem('petcare_last_user_session');
     if (cached) {
       const parsed = JSON.parse(cached);
       if (parsed?.user?.id) return parsed.user.id;

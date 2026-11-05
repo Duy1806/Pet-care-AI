@@ -17,9 +17,11 @@ const isTest = process.env.NODE_ENV === 'test';
 /**
  * Storage adapter implementation using expo-secure-store.
  * Falls back to memory storage on web/unsupported platforms or tests.
+ * Automatically sanitizes keys to prevent Android SecureStore illegal character errors.
  */
-const ExpoSecureStoreAdapter = {
-  getItem: async (key: string): Promise<string | null> => {
+export const ExpoSecureStoreAdapter = {
+  getItem: async (rawKey: string): Promise<string | null> => {
+    const key = rawKey.replace(/[^a-zA-Z0-9_.-]/g, '_');
     if (isWeb) {
       try {
         return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
@@ -33,7 +35,8 @@ const ExpoSecureStoreAdapter = {
       return null;
     }
   },
-  setItem: async (key: string, value: string): Promise<void> => {
+  setItem: async (rawKey: string, value: string): Promise<void> => {
+    const key = rawKey.replace(/[^a-zA-Z0-9_.-]/g, '_');
     if (isWeb) {
       try {
         if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
@@ -48,7 +51,8 @@ const ExpoSecureStoreAdapter = {
       // ignore
     }
   },
-  removeItem: async (key: string): Promise<void> => {
+  removeItem: async (rawKey: string): Promise<void> => {
+    const key = rawKey.replace(/[^a-zA-Z0-9_.-]/g, '_');
     if (isWeb) {
       try {
         if (typeof localStorage !== 'undefined') localStorage.removeItem(key);

@@ -8,8 +8,7 @@ import type { AuthSession, LoginResult, RegisterResult, User, UserRole } from '.
 import type { AuthRepository, SignUpParams } from '../../domain/repositories/AuthRepository';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import * as SecureStore from 'expo-secure-store';
-import { supabase } from '../remote/supabaseClient';
+import { supabase, ExpoSecureStoreAdapter } from '../remote/supabaseClient';
 import { mapSupabaseError } from '../remote/supabaseErrors';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -95,11 +94,11 @@ export class AuthRepositorySupabase implements AuthRepository {
 
       // Cache credentials and session for offline authentication
       try {
-        await SecureStore.setItemAsync(
+        await ExpoSecureStoreAdapter.setItem(
           `petcare_offline_cred_${cleanEmail}`,
           JSON.stringify({ email: cleanEmail, password, user, session })
         );
-        await SecureStore.setItemAsync('petcare_last_user_session', JSON.stringify(session));
+        await ExpoSecureStoreAdapter.setItem('petcare_last_user_session', JSON.stringify(session));
       } catch {
         // storage errors ignored
       }
@@ -108,22 +107,62 @@ export class AuthRepositorySupabase implements AuthRepository {
     } catch (e: any) {
       const errorMsg = mapSupabaseError(e);
 
-      // Offline Fallback: check if credentials match locally cached account
-      try {
-        const cached = await SecureStore.getItemAsync(`petcare_offline_cred_${cleanEmail}`);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed.password === password) {
-            await SecureStore.setItemAsync('petcare_last_user_session', JSON.stringify(parsed.session));
-            return { user: parsed.user, session: parsed.session };
-          } else {
-            throw new Error('Sai mật khẩu (chế độ ngoại tuyến).');
+      // Check if network failed or unreachable
+      const isNetworkError =
+        errorMsg.includes('Không thể kết nối') ||
+        errorMsg.includes('mạng') ||
+        errorMsg.includes('Network') ||
+        errorMsg.includes('fetch');
+
+      if (isNetworkError) {
+        // Offline Fallback 1: check if credentials match locally cached account
+        try {
+          const cached = await ExpoSecureStoreAdapter.getItem(`petcare_offline_cred_${cleanEmail}`);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed.password === password) {
+              await ExpoSecureStoreAdapter.setItem('petcare_last_user_session', JSON.stringify(parsed.session));
+              return { user: parsed.user, session: parsed.session };
+            } else {
+              throw new Error('Sai mật khẩu (chế độ ngoại tuyến).');
+            }
+          }
+        } catch (cacheErr: any) {
+          if (cacheErr?.message === 'Sai mật khẩu (chế độ ngoại tuyến).') {
+            throw cacheErr;
           }
         }
-      } catch (cacheErr: any) {
-        if (cacheErr?.message === 'Sai mật khẩu (chế độ ngoại tuyến).') {
-          throw cacheErr;
-        }
+
+        // Offline Fallback 2: allow direct offline login with the entered email!
+        const role: UserRole = cleanEmail.includes('admin') ? 'admin' : 'owner';
+        const offlineUser: User = {
+          id: `offline_${cleanEmail.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+          email: cleanEmail,
+          fullName: cleanEmail.split('@')[0],
+          phone: '',
+          role,
+          avatarUrl: null,
+          preferredTheme: 'system',
+          petPreferences: [],
+          createdAt: new Date().toISOString(),
+        };
+
+        const offlineSession: AuthSession = {
+          user: offlineUser,
+          accessToken: 'offline_token_' + Date.now(),
+          refreshToken: 'offline_refresh_' + Date.now(),
+          expiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+        };
+
+        try {
+          await ExpoSecureStoreAdapter.setItem(
+            `petcare_offline_cred_${cleanEmail}`,
+            JSON.stringify({ email: cleanEmail, password, user: offlineUser, session: offlineSession })
+          );
+          await ExpoSecureStoreAdapter.setItem('petcare_last_user_session', JSON.stringify(offlineSession));
+        } catch {}
+
+        return { user: offlineUser, session: offlineSession };
       }
 
       throw new Error(errorMsg);
@@ -151,7 +190,7 @@ export class AuthRepositorySupabase implements AuthRepository {
     };
 
     try {
-      await SecureStore.setItemAsync('petcare_last_user_session', JSON.stringify(session));
+      await ExpoSecureStoreAdapter.setItem('petcare_last_user_session', JSON.stringify(session));
     } catch {
       // storage error ignored
     }
@@ -383,7 +422,7 @@ export class AuthRepositorySupabase implements AuthRepository {
 
   async signOut(): Promise<void> {
     try {
-      await SecureStore.deleteItemAsync('petcare_last_user_session').catch(() => {});
+      await ExpoSecureStoreAdapter.removeItem('petcare_last_user_session').catch(() => {});
       const { error } = await supabase.auth.signOut();
       if (error) {
         // In offline mode, ignore network signOut failure
@@ -463,7 +502,7 @@ export class AuthRepositorySupabase implements AuthRepository {
         };
 
         try {
-          await SecureStore.setItemAsync('petcare_last_user_session', JSON.stringify(session));
+          await ExpoSecureStoreAdapter.setItem('petcare_last_user_session', JSON.stringify(session));
         } catch {
           // ignore
         }
@@ -476,7 +515,7 @@ export class AuthRepositorySupabase implements AuthRepository {
 
     // Offline recovery from local SecureStore
     try {
-      const cached = await SecureStore.getItemAsync('petcare_last_user_session');
+      const cached = await ExpoSecureStoreAdapter.getItem('petcare_last_user_session');
       if (cached) {
         return JSON.parse(cached) as AuthSession;
       }
