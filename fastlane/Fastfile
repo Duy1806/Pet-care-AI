@@ -1,0 +1,33 @@
+# fastlane/Fastfile
+# Fastlane CI/CD automation for PawCare AI (VKU Capstone Project)
+
+default_platform(:android)
+
+platform :android do
+  desc "Chạy kiểm tra mã nguồn (Lint, Typecheck, Unit Tests)"
+  lane :test do
+    gradle(task: "test")
+  end
+
+  desc "Tự động build và ký số file Release APK"
+  lane :build_apk do
+    gradle(
+      task: "assemble",
+      build_type: "Release"
+    )
+  end
+
+  desc "Tự động build và ký số file Release Android App Bundle (AAB) cho Google Play"
+  lane :build_aab do
+    gradle(
+      task: "bundle",
+      build_type: "Release"
+    )
+  end
+
+  desc "Pipeline CI/CD hoàn chỉnh: Kiểm tra, Build và Đóng gói Release"
+  lane :deploy do
+    test
+    build_apk
+  end
+end

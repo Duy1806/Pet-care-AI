@@ -1,11 +1,13 @@
-name: CI
-on:
+name: CI/CD Pipeline - PawCare AI (VKU Capstone)
 
+on:
   pull_request:
   push:
     branches: [main]
+
 jobs:
-  check:
+  quality-check:
+    name: Clean Architecture, TypeCheck & Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -13,6 +15,25 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
+      - name: Install dependencies
+        run: npm ci
+      - name: TypeCheck (TypeScript strict mode)
+        run: npm run typecheck
+      - name: Unit Tests (Domain & Data layer)
+        run: npm test
+
+  fastlane-check:
+    name: Fastlane CI/CD Configuration Validation
+    needs: quality-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Ruby for Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+      - name: Verify Fastlane files
+        run: |
+          test -f fastlane/Fastfile && echo "Fastfile exists"
+          test -f fastlane/Appfile && echo "Appfile exists"
+          test -f eas.json && echo "eas.json exists"

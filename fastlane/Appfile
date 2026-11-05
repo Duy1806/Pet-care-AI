@@ -1,0 +1,5 @@
+# fastlane/Appfile
+# Defines configuration information for Fastlane
+
+app_identifier("vn.vku.petcareai")
+package_name("vn.vku.petcareai")
