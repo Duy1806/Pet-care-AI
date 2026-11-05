@@ -5,8 +5,11 @@
  */
 import type { Pet } from '../../domain/entities/Pet';
 import type { PetRepository, CreatePetInput } from '../../domain/repositories/PetRepository';
+import * as SecureStore from 'expo-secure-store';
 import { supabase } from '../remote/supabaseClient';
 import { mapSupabaseError } from '../remote/supabaseErrors';
+import { getDatabase } from '../local/database';
+import { PetDao, type LocalPet } from '../local/PetDao';
 
 interface DbPetRow {
   id: string;
@@ -50,10 +53,48 @@ function mapRowToPet(row: DbPetRow): Pet {
   };
 }
 
+function mapLocalPetToEntity(local: LocalPet): Pet {
+  const breedTitle = local.breed_name_custom || 'Chưa rõ giống';
+  return {
+    id: local.id,
+    ownerId: local.owner_id,
+    name: local.name,
+    species: local.species,
+    breed: breedTitle,
+    breedId: local.breed_id,
+    breedName: breedTitle,
+    sex: (local.sex as any) || 'unknown',
+    isNeutered: Boolean(local.is_neutered),
+    birthDate: local.birth_date,
+    weightKg: Number(local.current_weight_kg) || 0,
+    activityLevel: (local.activity_level as any) || 'moderate',
+    photoUrl: local.photo_url,
+    notes: local.notes,
+    createdAt: local.created_at,
+  };
+}
+
+async function resolveCurrentUserId(explicitId?: string): Promise<string> {
+  if (explicitId) return explicitId;
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data?.session?.user?.id) return data.session.user.id;
+  } catch {}
+  try {
+    const cached = await SecureStore.getItemAsync('petcare_last_user_session');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed?.user?.id) return parsed.user.id;
+    }
+  } catch {}
+  return 'guest_local_user';
+}
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class PetRepositorySupabase implements PetRepository {
   async getAll(): Promise<Pet[]> {
+    const ownerId = await resolveCurrentUserId();
     try {
       const { data, error } = await supabase
         .from('pets')
@@ -65,9 +106,30 @@ export class PetRepositorySupabase implements PetRepository {
         throw new Error(mapSupabaseError(error));
       }
 
-      return (data || []).map((row: any) => mapRowToPet(row));
-    } catch (e) {
-      throw new Error(mapSupabaseError(e));
+      const pets = (data || []).map((row: any) => mapRowToPet(row));
+
+      // Asynchronously mirror remote pets into local SQLite
+      try {
+        const db = await getDatabase();
+        const petDao = new PetDao(db);
+        for (const row of data || []) {
+          await petDao.upsertFromRemote(row);
+        }
+      } catch {
+        // Local SQLite mirror failure ignored
+      }
+
+      return pets;
+    } catch {
+      // Offline fallback: load cached pets from local SQLite
+      try {
+        const db = await getDatabase();
+        const petDao = new PetDao(db);
+        const localPets = await petDao.getAll(ownerId);
+        return localPets.map(mapLocalPetToEntity);
+      } catch {
+        return [];
+      }
     }
   }
 
@@ -95,14 +157,9 @@ export class PetRepositorySupabase implements PetRepository {
   }
 
   async create(input: CreatePetInput): Promise<Pet> {
+    const currentUserId = await resolveCurrentUserId(input.ownerId);
+
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const currentUserId = sessionData.session?.user.id || input.ownerId;
-
-      if (!currentUserId) {
-        throw new Error('Vui lòng đăng nhập để thực hiện thêm thú cưng.');
-      }
-
       const rowToInsert = {
         owner_id: currentUserId,
         name: input.name,
@@ -128,9 +185,37 @@ export class PetRepositorySupabase implements PetRepository {
         throw new Error(mapSupabaseError(error));
       }
 
-      return mapRowToPet(data as any);
-    } catch (e) {
-      throw new Error(mapSupabaseError(e));
+      const createdPet = mapRowToPet(data as any);
+      // Asynchronously mirror to local SQLite
+      try {
+        const db = await getDatabase();
+        const petDao = new PetDao(db);
+        await petDao.upsertFromRemote(data);
+      } catch {}
+
+      return createdPet;
+    } catch {
+      // Offline fallback: write to local SQLite with outbox queue
+      try {
+        const db = await getDatabase();
+        const petDao = new PetDao(db);
+        const localPet = await petDao.create(currentUserId, {
+          name: input.name,
+          species: input.species,
+          breed_id: input.breedId,
+          breed_name_custom: input.breedName,
+          sex: input.sex,
+          is_neutered: input.isNeutered,
+          birth_date: input.birthDate,
+          current_weight_kg: input.weightKg,
+          activity_level: input.activityLevel,
+          photo_url: input.photoUrl,
+          notes: input.notes,
+        });
+        return mapLocalPetToEntity(localPet);
+      } catch (localErr: any) {
+        throw new Error(localErr.message || 'Không thể lưu thú cưng vào bộ nhớ máy');
+      }
     }
   }
 

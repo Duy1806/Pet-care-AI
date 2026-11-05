@@ -16,6 +16,9 @@ export interface AuthRepository {
   /** Sign in with email and password */
   signIn(email: string, password: string): Promise<LoginResult>;
 
+  /** Sign in as a local offline guest without network credentials */
+  loginAsGuest(): Promise<LoginResult>;
+
   /** Sign in using Google OAuth */
   signInWithGoogle(): Promise<LoginResult | null>;
 

@@ -72,6 +72,24 @@ export class AuthRepositoryMock implements AuthRepository {
     return { user: entry.user, session };
   }
 
+  async loginAsGuest(): Promise<LoginResult> {
+    await delay();
+    const user: User = {
+      id: 'guest_local_user',
+      email: 'guest@petcareai.local',
+      fullName: 'Khách (Offline)',
+      phone: '',
+      role: 'owner',
+      avatarUrl: null,
+      preferredTheme: 'system',
+      petPreferences: [],
+      createdAt: new Date().toISOString(),
+    };
+    const session = createSession(user);
+    currentSession = session;
+    return { user, session };
+  }
+
   async signInWithGoogle(): Promise<LoginResult | null> {
     await delay();
     const user: User = {

@@ -41,7 +41,7 @@ import { loginSchema, type LoginFormData } from '@/presentation/validation';
 export default function LoginScreen() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { login, loginWithGoogle, isLoading, error, clearError, resendSignUpOtp } = useAuthStore();
+  const { login, loginWithGoogle, loginAsGuest, isLoading, error, clearError, resendSignUpOtp } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
@@ -95,6 +95,14 @@ export default function LoginScreen() {
       setIsGoogleLoading(false);
     }
   }, [loginWithGoogle]);
+
+  const handleGuestLogin = useCallback(async () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const success = await loginAsGuest();
+    if (success) {
+      router.replace('/(app)' as any);
+    }
+  }, [loginAsGuest]);
 
   const handleForgotPassword = useCallback(() => {
     router.push('/(auth)/forgot-password' as any);
@@ -294,6 +302,28 @@ export default function LoginScreen() {
               />
             </Animated.View>
 
+            {/* Chế độ Khách / Offline button */}
+            <Animated.View entering={FadeInDown.delay(700).duration(400)} style={{ marginTop: spacing.md }}>
+              <Pressable
+                onPress={handleGuestLogin}
+                disabled={isLoading}
+                style={({ pressed }) => [
+                  styles.guestButton,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: pressed ? colors.surfaceElevated : colors.surface,
+                    borderRadius: radius.full,
+                  },
+                ]}
+                accessibilityLabel="Trải nghiệm Offline không cần mạng"
+              >
+                <MaterialCommunityIcons name="airplane" size={18} color={colors.primary} style={{ marginRight: 8 }} />
+                <Text style={[typo.labelLarge, { color: colors.primary, fontFamily: 'Inter_600SemiBold' }]}>
+                  Trải nghiệm Offline (Chế độ Khách)
+                </Text>
+              </Pressable>
+            </Animated.View>
+
             {/* Register link */}
             <Pressable
               onPress={handleRegister}
@@ -348,5 +378,13 @@ const styles = StyleSheet.create({
   footer: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  guestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderWidth: 1,
+    paddingHorizontal: 16,
   },
 });

@@ -8,6 +8,7 @@ import type { AuthSession, LoginResult, RegisterResult, User, UserRole } from '.
 import type { AuthRepository, SignUpParams } from '../../domain/repositories/AuthRepository';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import * as SecureStore from 'expo-secure-store';
 import { supabase } from '../remote/supabaseClient';
 import { mapSupabaseError } from '../remote/supabaseErrors';
 
@@ -60,9 +61,10 @@ export class AuthRepositorySupabase implements AuthRepository {
   }
 
   async signIn(email: string, password: string): Promise<LoginResult> {
+    const cleanEmail = email.trim().toLowerCase();
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: cleanEmail,
         password,
       });
 
@@ -74,7 +76,7 @@ export class AuthRepositorySupabase implements AuthRepository {
 
       const user: User = {
         id: data.user.id,
-        email: data.user.email || email,
+        email: data.user.email || cleanEmail,
         fullName: profile.fullName,
         phone: profile.phone,
         role: profile.role,
@@ -91,10 +93,70 @@ export class AuthRepositorySupabase implements AuthRepository {
         expiresAt: (data.session.expires_at || 0) * 1000,
       };
 
+      // Cache credentials and session for offline authentication
+      try {
+        await SecureStore.setItemAsync(
+          `petcare_offline_cred_${cleanEmail}`,
+          JSON.stringify({ email: cleanEmail, password, user, session })
+        );
+        await SecureStore.setItemAsync('petcare_last_user_session', JSON.stringify(session));
+      } catch {
+        // storage errors ignored
+      }
+
       return { user, session };
-    } catch (e) {
-      throw new Error(mapSupabaseError(e));
+    } catch (e: any) {
+      const errorMsg = mapSupabaseError(e);
+
+      // Offline Fallback: check if credentials match locally cached account
+      try {
+        const cached = await SecureStore.getItemAsync(`petcare_offline_cred_${cleanEmail}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed.password === password) {
+            await SecureStore.setItemAsync('petcare_last_user_session', JSON.stringify(parsed.session));
+            return { user: parsed.user, session: parsed.session };
+          } else {
+            throw new Error('Sai mật khẩu (chế độ ngoại tuyến).');
+          }
+        }
+      } catch (cacheErr: any) {
+        if (cacheErr?.message === 'Sai mật khẩu (chế độ ngoại tuyến).') {
+          throw cacheErr;
+        }
+      }
+
+      throw new Error(errorMsg);
     }
+  }
+
+  async loginAsGuest(): Promise<LoginResult> {
+    const user: User = {
+      id: 'guest_local_user',
+      email: 'guest@petcareai.local',
+      fullName: 'Khách (Chế độ Offline)',
+      phone: '',
+      role: 'owner',
+      avatarUrl: null,
+      preferredTheme: 'system',
+      petPreferences: [],
+      createdAt: new Date().toISOString(),
+    };
+
+    const session: AuthSession = {
+      user,
+      accessToken: 'guest_offline_token',
+      refreshToken: 'guest_offline_refresh',
+      expiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+    };
+
+    try {
+      await SecureStore.setItemAsync('petcare_last_user_session', JSON.stringify(session));
+    } catch {
+      // storage error ignored
+    }
+
+    return { user, session };
   }
 
   async signInWithGoogle(): Promise<LoginResult | null> {
@@ -321,12 +383,13 @@ export class AuthRepositorySupabase implements AuthRepository {
 
   async signOut(): Promise<void> {
     try {
+      await SecureStore.deleteItemAsync('petcare_last_user_session').catch(() => {});
       const { error } = await supabase.auth.signOut();
       if (error) {
-        throw new Error(mapSupabaseError(error));
+        // In offline mode, ignore network signOut failure
       }
-    } catch (e) {
-      throw new Error(mapSupabaseError(e));
+    } catch {
+      // ignore
     }
   }
 
@@ -377,33 +440,51 @@ export class AuthRepositorySupabase implements AuthRepository {
   async restoreSession(): Promise<AuthSession | null> {
     try {
       const { data, error } = await supabase.auth.getSession();
-      if (error || !data.session || !data.session.user) {
-        return null;
+      if (!error && data?.session && data.session.user) {
+        const profile = await this.getProfileData(data.session.user.id);
+
+        const user: User = {
+          id: data.session.user.id,
+          email: data.session.user.email || '',
+          fullName: profile.fullName,
+          phone: profile.phone,
+          role: profile.role,
+          avatarUrl: profile.avatarUrl,
+          preferredTheme: profile.preferredTheme,
+          petPreferences: (data.session.user.user_metadata?.pet_preferences as any) || [],
+          createdAt: data.session.user.created_at,
+        };
+
+        const session: AuthSession = {
+          user,
+          accessToken: data.session.access_token,
+          refreshToken: data.session.refresh_token,
+          expiresAt: (data.session.expires_at || 0) * 1000,
+        };
+
+        try {
+          await SecureStore.setItemAsync('petcare_last_user_session', JSON.stringify(session));
+        } catch {
+          // ignore
+        }
+
+        return session;
       }
-
-      const profile = await this.getProfileData(data.session.user.id);
-
-      const user: User = {
-        id: data.session.user.id,
-        email: data.session.user.email || '',
-        fullName: profile.fullName,
-        phone: profile.phone,
-        role: profile.role,
-        avatarUrl: profile.avatarUrl,
-        preferredTheme: profile.preferredTheme,
-        petPreferences: (data.session.user.user_metadata?.pet_preferences as any) || [],
-        createdAt: data.session.user.created_at,
-      };
-
-      return {
-        user,
-        accessToken: data.session.access_token,
-        refreshToken: data.session.refresh_token,
-        expiresAt: (data.session.expires_at || 0) * 1000,
-      };
     } catch {
-      return null;
+      // Fall through to offline cached session
     }
+
+    // Offline recovery from local SecureStore
+    try {
+      const cached = await SecureStore.getItemAsync('petcare_last_user_session');
+      if (cached) {
+        return JSON.parse(cached) as AuthSession;
+      }
+    } catch {
+      // ignore
+    }
+
+    return null;
   }
 
   async getCurrentUser(): Promise<User | null> {

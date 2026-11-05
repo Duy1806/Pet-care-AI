@@ -46,6 +46,8 @@ interface AuthState {
   login: (email: string, password: string) => Promise<boolean>;
   /** Sign in using Google OAuth */
   loginWithGoogle: () => Promise<boolean>;
+  /** Sign in as a local offline guest */
+  loginAsGuest: () => Promise<boolean>;
   /** Create a new account */
   register: (params: SignUpParams) => Promise<'success' | 'requires_verification' | false>;
   /** Verify OTP after sign up */
@@ -131,6 +133,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Đã xảy ra lỗi khi đăng nhập với Google';
+      set({ isLoading: false, error: message });
+      return false;
+    }
+  },
+
+  loginAsGuest: async () => {
+    try {
+      set({ isLoading: true, error: null });
+      const result = await authRepository.loginAsGuest();
+      set({
+        user: result.user,
+        session: result.session,
+        isLoading: false,
+      });
+      return true;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Không thể vào chế độ Offline';
       set({ isLoading: false, error: message });
       return false;
     }
