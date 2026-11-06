@@ -86,6 +86,11 @@ export default function ForgotPasswordScreen() {
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
 
+  // Manual fallback input for Step 2
+  const [manualInput, setManualInput] = useState('');
+  const [isVerifyingManual, setIsVerifyingManual] = useState(false);
+  const [manualError, setManualError] = useState<string | null>(null);
+
   // Password visibility for step 3
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -117,8 +122,32 @@ export default function ForgotPasswordScreen() {
             refresh_token: parsed.refresh_token,
           });
           useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+          return;
         } catch {
           // ignore session setting failure
+        }
+      } else if (parsed.code) {
+        try {
+          await supabase.auth.exchangeCodeForSession(parsed.code);
+          useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+          return;
+        } catch {
+          // ignore exchange code failure
+        }
+      } else if (parsed.token || parsed.token_hash) {
+        try {
+          const email = useAuthStore.getState().forgotPasswordEmail;
+          if (email) {
+            await supabase.auth.verifyOtp({
+              email,
+              token: parsed.token || parsed.token_hash,
+              type: 'recovery',
+            });
+            useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+            return;
+          }
+        } catch {
+          // ignore
         }
       } else if (parsed.step === 'new-password' || parsed.type === 'recovery') {
         useAuthStore.setState({ forgotPasswordStep: 'new-password' });
@@ -234,6 +263,84 @@ export default function ForgotPasswordScreen() {
       setCanResend(false);
     }
   }, [canResend, forgotPasswordEmail, sendResetCode, clearError]);
+
+  // Step 2: Manual fallback verification (paste email link or 6-digit OTP)
+  const handleManualVerify = useCallback(async () => {
+    const raw = manualInput.trim();
+    if (!raw) {
+      setManualError('Vui lòng dán liên kết hoặc nhập mã xác nhận từ email.');
+      return;
+    }
+    setManualError(null);
+    setIsVerifyingManual(true);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    try {
+      const email = forgotPasswordEmail.trim().toLowerCase();
+
+      // Case 1: If user pasted a URL or query string with parameters
+      if (raw.includes('http') || raw.includes('?') || raw.includes('#') || raw.includes('=')) {
+        const parsed = parseUrlParams(raw);
+
+        if (parsed.access_token && parsed.refresh_token) {
+          const { error: sessErr } = await supabase.auth.setSession({
+            access_token: parsed.access_token,
+            refresh_token: parsed.refresh_token,
+          });
+          if (!sessErr) {
+            useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            return;
+          }
+        }
+
+        if (parsed.code) {
+          const { error: codeErr } = await supabase.auth.exchangeCodeForSession(parsed.code);
+          if (!codeErr) {
+            useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            return;
+          }
+        }
+
+        const token = parsed.token || parsed.token_hash;
+        if (token) {
+          const { error: otpErr } = await supabase.auth.verifyOtp({
+            email,
+            token,
+            type: 'recovery',
+          });
+          if (!otpErr) {
+            useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            return;
+          }
+        }
+      }
+
+      // Case 2: User entered a 6-digit OTP code or direct token
+      const cleanToken = raw.replace(/\s+/g, '');
+      const { error: directErr } = await supabase.auth.verifyOtp({
+        email,
+        token: cleanToken,
+        type: 'recovery',
+      });
+
+      if (!directErr) {
+        useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        return;
+      }
+
+      setManualError('Mã xác nhận hoặc liên kết không hợp lệ, hoặc đã hết hạn.');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } catch (err: any) {
+      setManualError(err?.message || 'Không thể xác thực. Vui lòng thử lại.');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsVerifyingManual(false);
+    }
+  }, [manualInput, forgotPasswordEmail]);
 
   // Step 3: Submit new password
   const onPasswordSubmit = useCallback(
@@ -492,6 +599,48 @@ export default function ForgotPasswordScreen() {
                   onPress={handleOpenMailApp}
                   style={{ width: '100%', marginBottom: spacing.sm }}
                 />
+
+                {/* Fallback Option: Paste link or enter code */}
+                <View
+                  style={{
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    borderRadius: radius.lg,
+                    padding: spacing.md,
+                    width: '100%',
+                    marginTop: spacing.sm,
+                    gap: spacing.xs,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <MaterialCommunityIcons name="link-variant" size={18} color={colors.primary} />
+                    <Text style={[typo.titleSmall, { color: colors.text, fontWeight: '700' }]}>
+                      Bấm link bị xoay hoặc không tự mở app?
+                    </Text>
+                  </View>
+                  <Text style={[typo.caption, { color: colors.textSecondary, lineHeight: 18, marginBottom: 4 }]}>
+                    Sao chép đường link nút "Reset Password" trong email hoặc mã số rồi dán vào đây để mở khóa ngay:
+                  </Text>
+                  <AppTextField
+                    label=""
+                    placeholder="Dán liên kết email hoặc mã 6 số..."
+                    value={manualInput}
+                    onChangeText={(t) => {
+                      setManualInput(t);
+                      if (manualError) setManualError(null);
+                    }}
+                    error={manualError || undefined}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <PrimaryButton
+                    title="Xác nhận & Tiếp tục"
+                    onPress={handleManualVerify}
+                    loading={isVerifyingManual}
+                    style={{ marginTop: 4 }}
+                  />
+                </View>
 
                 {/* Resend Countdown */}
                 <View style={{ marginVertical: spacing.md, alignItems: 'center' }}>

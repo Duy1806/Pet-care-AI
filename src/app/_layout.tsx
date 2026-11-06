@@ -110,6 +110,22 @@ function RootNavigator() {
         } catch {
           // ignore exchange code failure
         }
+      } else if (parsed.token || parsed.token_hash) {
+        try {
+          const email = useAuthStore.getState().forgotPasswordEmail;
+          if (email) {
+            await supabase.auth.verifyOtp({
+              email,
+              token: parsed.token || parsed.token_hash,
+              type: 'recovery',
+            });
+            useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+            router.replace('/(auth)/forgot-password?step=new-password' as any);
+            return;
+          }
+        } catch {
+          // ignore token verification failure
+        }
       }
 
       if (isRecovery) {

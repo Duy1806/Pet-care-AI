@@ -436,9 +436,18 @@ export class AuthRepositorySupabase implements AuthRepository {
 
   async sendPasswordResetCode(email: string): Promise<void> {
     try {
-      const redirectUrl = Linking.createURL('forgot-password', {
+      let redirectUrl = Linking.createURL('forgot-password', {
         queryParams: { step: 'new-password' },
       });
+
+      // Sanitize virtual machine adapter IPs (e.g. VMware 192.168.100.x or 192.168.20.x)
+      // which are inaccessible to physical mobile devices on the local Wi-Fi network
+      if (redirectUrl.includes('192.168.100.') || redirectUrl.includes('192.168.20.')) {
+        redirectUrl = redirectUrl
+          .replace('192.168.100.1', '10.10.0.22')
+          .replace('192.168.20.1', '10.10.0.22');
+      }
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
       });
