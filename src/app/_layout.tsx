@@ -32,6 +32,7 @@ import { supabase } from '../data/remote/supabaseClient';
 import { FloatingAssistantBubble } from '../presentation/components/FloatingAssistantBubble';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useChatStore } from '../presentation/stores/useChatStore';
+import { useSyncStore } from '../presentation/stores/useSyncStore';
 
 function parseUrlParams(rawUrl: string): Record<string, string> {
   const params: Record<string, string> = {};
@@ -61,6 +62,7 @@ function RootNavigator() {
 
   useEffect(() => {
     void initialize();
+    void useSyncStore.getState().initSync();
   }, [initialize]);
 
   // Global Recovery & Deep Link listener

@@ -2,10 +2,12 @@
  * PawCare AI — Care Reminder Supabase Repository
  *
  * Implements real-time persistence of care schedule items with soft-delete
- * and offline/mock resilience.
+ * and offline/mock resilience using local SQLite table 'reminders' and SyncEngine.
  */
-import { supabase } from '../remote/supabaseClient';
+import { supabase, ExpoSecureStoreAdapter } from '../remote/supabaseClient';
 import { mapSupabaseError } from '../remote/supabaseErrors';
+import { getDatabase } from '../local/database';
+import { CareReminderDao } from '../local/CareReminderDao';
 import type { CareCategory, CareReminder } from '@/domain/entities/CareReminder';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -43,12 +45,6 @@ function getCategoryIcon(kind: string, rawTitle: string): string {
 
 export class CareReminderRepositorySupabase {
   async getByPetIdAndDate(petId: string, date: string): Promise<CareReminder[]> {
-    // If not a UUID (e.g. demo pet), return from memory
-    if (!UUID_REGEX.test(petId)) {
-      const list = localMemoryStore.get(petId) || [];
-      return list.filter((r) => r.date === date);
-    }
-
     try {
       const { data, error } = await supabase
         .from('reminders')
@@ -61,8 +57,19 @@ export class CareReminderRepositorySupabase {
         throw new Error(mapSupabaseError(error));
       }
 
+      // Mirror to local SQLite
+      try {
+        const db = await getDatabase();
+        const dao = new CareReminderDao(db);
+        for (const row of data || []) {
+          await dao.upsertFromRemote(row);
+        }
+      } catch {}
+
       const results: CareReminder[] = (data || []).map((row: any) => {
-        const timePart = row.remind_at ? new Date(row.remind_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }) : '08:00';
+        const timePart = row.remind_at
+          ? new Date(row.remind_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
+          : '08:00';
         const datePart = row.remind_at ? row.remind_at.split('T')[0] : date;
         const kind = (row.kind as CareCategory) || 'other';
 
@@ -80,20 +87,38 @@ export class CareReminderRepositorySupabase {
         };
       });
 
-      // Filter by the requested day (e.g. today)
       return results.filter((r) => r.date === date);
     } catch {
-      // Fallback to local cache on error
-      const list = localMemoryStore.get(petId) || [];
-      return list.filter((r) => r.date === date);
+      // Offline fallback: load from local SQLite table 'reminders'
+      try {
+        const db = await getDatabase();
+        const dao = new CareReminderDao(db);
+        const locals = await dao.getByPetIdAndDate(petId, date);
+        return locals.map((row) => {
+          const timePart = row.remind_at
+            ? new Date(row.remind_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
+            : '08:00';
+          const kind = (row.kind as CareCategory) || 'other';
+          return {
+            id: row.id,
+            petId: row.pet_id,
+            ownerId: row.owner_id,
+            title: row.title,
+            time: timePart,
+            category: kind,
+            icon: getCategoryIcon(kind, row.title),
+            isDone: Boolean(row.is_done),
+            date,
+            createdAt: row.created_at,
+          };
+        });
+      } catch {
+        return [];
+      }
     }
   }
 
   async getAllByPetId(petId: string): Promise<CareReminder[]> {
-    if (!UUID_REGEX.test(petId)) {
-      return localMemoryStore.get(petId) || [];
-    }
-
     try {
       const { data, error } = await supabase
         .from('reminders')
@@ -127,56 +152,70 @@ export class CareReminderRepositorySupabase {
         };
       });
     } catch {
-      return localMemoryStore.get(petId) || [];
+      try {
+        const db = await getDatabase();
+        const dao = new CareReminderDao(db);
+        const locals = await dao.getByPetId(petId);
+        return locals.map((row) => {
+          const timePart = row.remind_at
+            ? new Date(row.remind_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
+            : '08:00';
+          const datePart = row.remind_at ? row.remind_at.split('T')[0] : '';
+          const kind = (row.kind as CareCategory) || 'other';
+          return {
+            id: row.id,
+            petId: row.pet_id,
+            ownerId: row.owner_id,
+            title: row.title,
+            time: timePart,
+            category: kind,
+            icon: getCategoryIcon(kind, row.title),
+            isDone: Boolean(row.is_done),
+            date: datePart,
+            createdAt: row.created_at,
+          };
+        });
+      } catch {
+        return [];
+      }
     }
   }
 
   async create(reminder: Omit<CareReminder, 'id' | 'createdAt'>): Promise<CareReminder> {
-    const id = UUID_REGEX.test(reminder.petId)
-      ? 'tmp_' + Date.now() + Math.random().toString(36).substring(2, 6)
-      : 'local_' + Date.now();
-
-    const createdItem: CareReminder = {
-      ...reminder,
-      id,
-      createdAt: new Date().toISOString(),
-    };
-
-    // If not a valid UUID, store locally in memory
-    if (!UUID_REGEX.test(reminder.petId)) {
-      const current = localMemoryStore.get(reminder.petId) || [];
-      localMemoryStore.set(reminder.petId, [createdItem, ...current]);
-      return createdItem;
-    }
-
+    // Resolve current user ID
+    let currentUserId: string | null = null;
     try {
       const { data: sessionData } = await supabase.auth.getSession();
-      const currentUserId = sessionData.session?.user.id;
+      currentUserId = sessionData?.session?.user?.id || null;
+    } catch {}
+    if (!currentUserId) {
+      try {
+        const cached = await ExpoSecureStoreAdapter.getItem('petcare_last_user_session');
+        if (cached) currentUserId = JSON.parse(cached)?.user?.id || null;
+      } catch {}
+    }
+    const resolvedOwnerId = currentUserId || reminder.ownerId || 'guest_local_user';
 
-      if (!currentUserId) {
-        const current = localMemoryStore.get(reminder.petId) || [];
-        localMemoryStore.set(reminder.petId, [createdItem, ...current]);
-        return createdItem;
-      }
+    // Build remind_at ISO timestamp
+    const [hStr, mStr] = reminder.time.split(':');
+    const [yStr, monStr, dStr] = reminder.date.split('-');
+    const remindDate = new Date(
+      parseInt(yStr, 10),
+      parseInt(monStr, 10) - 1,
+      parseInt(dStr, 10),
+      parseInt(hStr || '8', 10),
+      parseInt(mStr || '0', 10),
+      0,
+    );
+    const remindAtIso = remindDate.toISOString();
 
-      // Build remind_at ISO timestamp
-      const [hStr, mStr] = reminder.time.split(':');
-      const [yStr, monStr, dStr] = reminder.date.split('-');
-      const remindDate = new Date(
-        parseInt(yStr, 10),
-        parseInt(monStr, 10) - 1,
-        parseInt(dStr, 10),
-        parseInt(hStr || '8', 10),
-        parseInt(mStr || '0', 10),
-        0
-      );
-
+    try {
       const rowToInsert = {
         pet_id: reminder.petId,
-        owner_id: currentUserId,
-        kind: 'custom',
+        owner_id: resolvedOwnerId,
+        kind: reminder.category || 'custom',
         title: reminder.title,
-        remind_at: remindDate.toISOString(),
+        remind_at: remindAtIso,
         repeat_rule: 'none',
         is_done: reminder.isDone,
       };
@@ -191,7 +230,14 @@ export class CareReminderRepositorySupabase {
         throw new Error(mapSupabaseError(error));
       }
 
-      const realItem: CareReminder = {
+      // Cache into local SQLite
+      try {
+        const db = await getDatabase();
+        const dao = new CareReminderDao(db);
+        await dao.upsertFromRemote(data);
+      } catch {}
+
+      return {
         id: data.id,
         petId: data.pet_id,
         ownerId: data.owner_id,
@@ -203,57 +249,78 @@ export class CareReminderRepositorySupabase {
         date: reminder.date,
         createdAt: data.created_at,
       };
-
-      const current = localMemoryStore.get(reminder.petId) || [];
-      localMemoryStore.set(reminder.petId, [realItem, ...current]);
-      return realItem;
     } catch {
-      // Return optimistic item if network fails
-      const current = localMemoryStore.get(reminder.petId) || [];
-      localMemoryStore.set(reminder.petId, [createdItem, ...current]);
-      return createdItem;
+      // Offline fallback: save to local SQLite with outbox queue
+      try {
+        const db = await getDatabase();
+        const dao = new CareReminderDao(db);
+        const local = await dao.create({
+          petId: reminder.petId,
+          ownerId: resolvedOwnerId,
+          kind: reminder.category || 'custom',
+          title: reminder.title,
+          remindAt: remindAtIso,
+          repeatRule: 'none',
+          isDone: reminder.isDone,
+        });
+
+        return {
+          id: local.id,
+          petId: local.pet_id,
+          ownerId: local.owner_id,
+          title: local.title,
+          time: reminder.time,
+          category: reminder.category,
+          icon: reminder.icon,
+          isDone: Boolean(local.is_done),
+          date: reminder.date,
+          createdAt: local.created_at,
+        };
+      } catch (err: any) {
+        throw new Error(err.message || 'Không thể lưu lịch chăm sóc ngoại tuyến');
+      }
     }
   }
 
   async updateDone(id: string, isDone: boolean): Promise<void> {
-    // Update in local memory
-    for (const [petId, list] of localMemoryStore.entries()) {
-      localMemoryStore.set(
-        petId,
-        list.map((item) => (item.id === id ? { ...item, isDone } : item))
-      );
-    }
-
-    if (!UUID_REGEX.test(id)) return;
-
+    // 1. Update in local SQLite with outbox queue
     try {
-      await supabase
-        .from('reminders')
-        .update({ is_done: isDone })
-        .eq('id', id);
-    } catch {
-      // Ignored
+      const db = await getDatabase();
+      const dao = new CareReminderDao(db);
+      await dao.updateDone(id, isDone);
+    } catch {}
+
+    // 2. If online, also update Supabase directly
+    if (UUID_REGEX.test(id)) {
+      try {
+        await supabase
+          .from('reminders')
+          .update({ is_done: isDone })
+          .eq('id', id);
+      } catch {
+        // Ignored; SyncEngine will sync when network is restored
+      }
     }
   }
 
   async delete(id: string): Promise<void> {
-    // Remove from local memory
-    for (const [petId, list] of localMemoryStore.entries()) {
-      localMemoryStore.set(
-        petId,
-        list.filter((item) => item.id !== id)
-      );
-    }
-
-    if (!UUID_REGEX.test(id)) return;
-
+    // 1. Soft-delete in local SQLite with outbox queue
     try {
-      await supabase
-        .from('reminders')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id);
-    } catch {
-      // Ignored
+      const db = await getDatabase();
+      const dao = new CareReminderDao(db);
+      await dao.softDelete(id);
+    } catch {}
+
+    // 2. If online, also soft-delete in Supabase
+    if (UUID_REGEX.test(id)) {
+      try {
+        await supabase
+          .from('reminders')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', id);
+      } catch {
+        // Ignored; SyncEngine will sync when network is restored
+      }
     }
   }
 }

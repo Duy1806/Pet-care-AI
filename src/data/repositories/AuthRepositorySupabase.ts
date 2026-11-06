@@ -10,6 +10,8 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { supabase, ExpoSecureStoreAdapter } from '../remote/supabaseClient';
 import { mapSupabaseError } from '../remote/supabaseErrors';
+import { getDatabase } from '../local/database';
+import { OutboxDao } from '../local/OutboxDao';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -532,44 +534,55 @@ export class AuthRepositorySupabase implements AuthRepository {
   }
 
   async updateProfile(params: { fullName?: string; phone?: string; avatarUrl?: string | null }): Promise<User> {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) {
+    const currentSession = await this.restoreSession();
+    if (!currentSession?.user) {
       throw new Error('Chưa đăng nhập.');
     }
 
+    const userId = currentSession.user.id;
     const updates: Record<string, any> = {};
     if (params.fullName !== undefined) updates.full_name = params.fullName.trim();
     if (params.phone !== undefined) updates.phone = params.phone.trim();
     if (params.avatarUrl !== undefined) updates.avatar_url = params.avatarUrl;
 
-    if (Object.keys(updates).length > 0) {
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', authUser.id);
-
-      if (error) {
-        throw new Error(error.message || 'Không thể cập nhật thông tin hồ sơ.');
-      }
-    }
-
-    if (params.fullName !== undefined) {
-      await supabase.auth.updateUser({
-        data: { full_name: params.fullName.trim() },
-      });
-    }
-
-    const profile = await this.getProfileData(authUser.id);
-    return {
-      id: authUser.id,
-      email: authUser.email || '',
-      fullName: profile.fullName,
-      phone: profile.phone,
-      role: profile.role,
-      avatarUrl: profile.avatarUrl,
-      preferredTheme: profile.preferredTheme,
-      petPreferences: (authUser.user_metadata?.pet_preferences as any) || [],
-      createdAt: authUser.created_at,
+    const updatedUser: User = {
+      ...currentSession.user,
+      fullName: params.fullName !== undefined ? params.fullName.trim() : currentSession.user.fullName,
+      phone: params.phone !== undefined ? params.phone.trim() : currentSession.user.phone,
+      avatarUrl: params.avatarUrl !== undefined ? params.avatarUrl : currentSession.user.avatarUrl,
     };
+
+    const updatedSession: AuthSession = {
+      ...currentSession,
+      user: updatedUser,
+    };
+
+    // Save locally immediately
+    try {
+      await ExpoSecureStoreAdapter.setItem('petcare_last_user_session', JSON.stringify(updatedSession));
+    } catch {}
+
+    try {
+      if (Object.keys(updates).length > 0) {
+        await supabase
+          .from('profiles')
+          .update(updates)
+          .eq('id', userId);
+      }
+      if (params.fullName !== undefined) {
+        await supabase.auth.updateUser({
+          data: { full_name: params.fullName.trim() },
+        });
+      }
+    } catch {
+      // Offline fallback: queue in outbox for SyncEngine
+      try {
+        const db = await getDatabase();
+        const outbox = new OutboxDao(db);
+        await outbox.add('profiles', userId, 'UPDATE', updates);
+      } catch {}
+    }
+
+    return updatedUser;
   }
 }

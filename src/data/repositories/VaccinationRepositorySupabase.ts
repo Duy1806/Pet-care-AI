@@ -13,6 +13,8 @@ import type {
 import type { VaccinationRepository } from '../../domain/repositories/VaccinationRepository';
 import { supabase } from '../remote/supabaseClient';
 import { mapSupabaseError } from '../remote/supabaseErrors';
+import { getDatabase } from '../local/database';
+import { VaccinationDao } from '../local/VaccinationDao';
 
 export class VaccinationRepositorySupabase implements VaccinationRepository {
   private mapRow(row: any): VaccinationRecord {
@@ -66,11 +68,6 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
   }
 
   async getByPetId(petId: string): Promise<VaccinationRecord[]> {
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!UUID_REGEX.test(petId)) {
-      return [];
-    }
-
     try {
       const { data, error } = await supabase
         .from('vaccinations')
@@ -83,22 +80,37 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
         throw new Error(mapSupabaseError(error));
       }
 
+      // Asynchronously mirror into local SQLite
+      try {
+        const db = await getDatabase();
+        const dao = new VaccinationDao(db);
+        for (const row of data || []) {
+          await dao.upsertFromRemote(row);
+        }
+      } catch {}
+
       return (data || []).map((row) => this.mapRow(row));
-    } catch (e) {
-      throw new Error(mapSupabaseError(e));
+    } catch {
+      // Offline fallback: load from local SQLite
+      try {
+        const db = await getDatabase();
+        const dao = new VaccinationDao(db);
+        const locals = await dao.getByPetId(petId);
+        return locals.map((l) => this.mapRow(l));
+      } catch {
+        return [];
+      }
     }
   }
 
   async getUpcomingAlerts(petIds: string[]): Promise<VaccinationRecord[]> {
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const validIds = (petIds || []).filter((id) => UUID_REGEX.test(id));
-    if (validIds.length === 0) return [];
+    if (!petIds || petIds.length === 0) return [];
 
     try {
       const { data, error } = await supabase
         .from('vaccinations')
         .select('*')
-        .in('pet_id', validIds)
+        .in('pet_id', petIds)
         .is('deleted_at', null)
         .not('next_due_at', 'is', null)
         .order('next_due_at', { ascending: true });
@@ -108,31 +120,37 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
       }
 
       return (data || []).map((row) => this.mapRow(row));
-    } catch (e) {
-      throw new Error(mapSupabaseError(e));
+    } catch {
+      // Offline fallback: load from local SQLite
+      try {
+        const db = await getDatabase();
+        const dao = new VaccinationDao(db);
+        const locals = await dao.getUpcomingAlerts(petIds);
+        return locals.map((l) => this.mapRow(l));
+      } catch {
+        return [];
+      }
     }
   }
 
   async create(params: CreateVaccinationParams): Promise<VaccinationRecord> {
+    const adminDate = params.administeredAt
+      ? new Date(params.administeredAt).toISOString()
+      : (params.nextDueAt ? new Date(params.nextDueAt).toISOString() : new Date().toISOString());
+
+    const notePayload = this.encodeMetadataNote(params.status, params.doseNumber, params.note);
+    const nextDueDate = params.nextDueAt ? new Date(params.nextDueAt).toISOString() : null;
+
     try {
-      const adminDate = params.administeredAt
-        ? new Date(params.administeredAt).toISOString()
-        : (params.nextDueAt ? new Date(params.nextDueAt).toISOString() : new Date().toISOString());
-
-      const notePayload = this.encodeMetadataNote(params.status, params.doseNumber, params.note);
-
       const insertPayload: Record<string, any> = {
         pet_id: params.petId,
         type: params.type,
         name: params.name.trim(),
         administered_at: adminDate,
+        next_due_at: nextDueDate,
         vet_clinic: params.vetClinic?.trim() || null,
         note: notePayload,
       };
-
-      if (params.nextDueAt) {
-        insertPayload.next_due_at = new Date(params.nextDueAt).toISOString();
-      }
 
       const { data, error } = await supabase
         .from('vaccinations')
@@ -144,29 +162,50 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
         throw new Error(mapSupabaseError(error));
       }
 
+      // Cache locally in SQLite
+      try {
+        const db = await getDatabase();
+        const dao = new VaccinationDao(db);
+        await dao.upsertFromRemote(data);
+      } catch {}
+
       return this.mapRow(data);
-    } catch (e) {
-      throw new Error(mapSupabaseError(e));
+    } catch {
+      // Offline fallback: save to local SQLite with outbox queue
+      try {
+        const db = await getDatabase();
+        const dao = new VaccinationDao(db);
+        const localRecord = await dao.create({
+          petId: params.petId,
+          type: params.type,
+          name: params.name.trim(),
+          administeredAt: adminDate,
+          nextDueAt: nextDueDate,
+          vetClinic: params.vetClinic?.trim() || null,
+          note: notePayload,
+        });
+        return this.mapRow(localRecord);
+      } catch (err: any) {
+        throw new Error(err.message || 'Không thể lưu bản ghi tiêm phòng ngoại tuyến');
+      }
     }
   }
 
   async update(params: UpdateVaccinationParams): Promise<VaccinationRecord> {
+    const notePayload = this.encodeMetadataNote(params.status, params.doseNumber, params.note);
+    const adminDate = params.administeredAt ? new Date(params.administeredAt).toISOString() : undefined;
+    const nextDueDate = params.nextDueAt !== undefined ? (params.nextDueAt ? new Date(params.nextDueAt).toISOString() : null) : undefined;
+
     try {
       const updatePayload: Record<string, any> = {};
 
       if (params.type) updatePayload.type = params.type;
       if (params.name) updatePayload.name = params.name.trim();
-      if (params.administeredAt) {
-        updatePayload.administered_at = new Date(params.administeredAt).toISOString();
-      }
-      if (params.nextDueAt !== undefined) {
-        updatePayload.next_due_at = params.nextDueAt ? new Date(params.nextDueAt).toISOString() : null;
-      }
-      if (params.vetClinic !== undefined) {
-        updatePayload.vet_clinic = params.vetClinic?.trim() || null;
-      }
+      if (adminDate) updatePayload.administered_at = adminDate;
+      if (nextDueDate !== undefined) updatePayload.next_due_at = nextDueDate;
+      if (params.vetClinic !== undefined) updatePayload.vet_clinic = params.vetClinic?.trim() || null;
       if (params.status !== undefined || params.doseNumber !== undefined || params.note !== undefined) {
-        updatePayload.note = this.encodeMetadataNote(params.status, params.doseNumber, params.note);
+        updatePayload.note = notePayload;
       }
 
       const { data, error } = await supabase
@@ -180,18 +219,48 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
         throw new Error(mapSupabaseError(error));
       }
 
+      try {
+        const db = await getDatabase();
+        const dao = new VaccinationDao(db);
+        await dao.upsertFromRemote(data);
+      } catch {}
+
       return this.mapRow(data);
-    } catch (e) {
-      throw new Error(mapSupabaseError(e));
+    } catch {
+      // Offline fallback: update local SQLite with outbox queue
+      try {
+        const db = await getDatabase();
+        const dao = new VaccinationDao(db);
+        await dao.update(params.id, {
+          type: params.type,
+          name: params.name,
+          administeredAt: adminDate,
+          nextDueAt: nextDueDate,
+          vetClinic: params.vetClinic,
+          note: notePayload,
+        });
+
+        return {
+          id: params.id,
+          petId: '',
+          type: params.type || 'vaccine',
+          name: params.name || '',
+          status: params.status || 'completed',
+          doseNumber: params.doseNumber || null,
+          administeredAt: params.administeredAt || '',
+          nextDueAt: params.nextDueAt || null,
+          vetClinic: params.vetClinic || null,
+          note: params.note || null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+      } catch (err: any) {
+        throw new Error(err.message || 'Không thể cập nhật tiêm phòng ngoại tuyến');
+      }
     }
   }
 
   async delete(id: string): Promise<void> {
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!UUID_REGEX.test(id)) {
-      return;
-    }
-
     try {
       const { error } = await supabase
         .from('vaccinations')
@@ -201,11 +270,19 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
       if (error) {
         throw new Error(mapSupabaseError(error));
       }
-    } catch (e: any) {
-      if (e instanceof Error && e.message) {
-        throw e;
-      }
-      throw new Error(mapSupabaseError(e));
+
+      try {
+        const db = await getDatabase();
+        const dao = new VaccinationDao(db);
+        await dao.softDelete(id);
+      } catch {}
+    } catch {
+      // Offline fallback: soft-delete locally in SQLite and queue outbox
+      try {
+        const db = await getDatabase();
+        const dao = new VaccinationDao(db);
+        await dao.softDelete(id);
+      } catch {}
     }
   }
 }

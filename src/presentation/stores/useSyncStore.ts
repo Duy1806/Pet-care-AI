@@ -43,11 +43,14 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
       // Listen to real network changes
       NetInfo.addEventListener((state) => {
-        const connected = state.isConnected ?? true;
+        const connected = Boolean(state.isConnected && state.isInternetReachable !== false);
         const currentSim = get().isSimulatedOffline;
-        set({ isOnline: currentSim ? false : connected });
+        const online = currentSim ? false : connected;
+        const wasOffline = !get().isOnline;
+        set({ isOnline: online });
 
-        if (connected && !currentSim && get().pendingCount > 0) {
+        // Auto sync immediately upon reconnecting to the internet
+        if (online && (wasOffline || get().pendingCount > 0)) {
           void get().syncNow();
         }
       });

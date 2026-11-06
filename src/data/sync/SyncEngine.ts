@@ -11,6 +11,8 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { OutboxDao } from '../local/OutboxDao';
 import { PetDao } from '../local/PetDao';
 import { WeightLogDao } from '../local/WeightLogDao';
+import { VaccinationDao } from '../local/VaccinationDao';
+import { CareReminderDao } from '../local/CareReminderDao';
 import { supabase } from '../remote/supabaseClient';
 
 export interface RemoteSyncClient {
@@ -55,6 +57,8 @@ export class SyncEngine {
   private readonly outboxDao: OutboxDao;
   private readonly petDao: PetDao;
   private readonly weightLogDao: WeightLogDao;
+  private readonly vaccinationDao: VaccinationDao;
+  private readonly careReminderDao: CareReminderDao;
   private isSyncing = false;
 
   constructor(
@@ -64,6 +68,8 @@ export class SyncEngine {
     this.outboxDao = new OutboxDao(db);
     this.petDao = new PetDao(db);
     this.weightLogDao = new WeightLogDao(db);
+    this.vaccinationDao = new VaccinationDao(db);
+    this.careReminderDao = new CareReminderDao(db);
   }
 
   /**
@@ -78,7 +84,9 @@ export class SyncEngine {
       try {
         const payload = JSON.parse(entry.payload);
 
-        if (entry.operation === 'INSERT' || entry.operation === 'UPDATE') {
+        if (entry.entity_table === 'profiles') {
+          await supabase.from('profiles').update(payload).eq('id', entry.entity_id);
+        } else if (entry.operation === 'INSERT' || entry.operation === 'UPDATE') {
           await this.remoteClient.upsert(entry.entity_table, payload);
         } else if (entry.operation === 'DELETE') {
           await this.remoteClient.softDelete(
@@ -94,6 +102,10 @@ export class SyncEngine {
           await this.petDao.markSynced(entry.entity_id);
         } else if (entry.entity_table === 'weight_logs') {
           await this.weightLogDao.markSynced(entry.entity_id);
+        } else if (entry.entity_table === 'vaccinations') {
+          await this.vaccinationDao.markSynced(entry.entity_id);
+        } else if (entry.entity_table === 'reminders') {
+          await this.careReminderDao.markSynced(entry.entity_id);
         }
         pushedCount++;
       } catch (err: any) {
@@ -129,6 +141,12 @@ export class SyncEngine {
       } else if (tableName === 'weight_logs') {
         await this.weightLogDao.upsertFromRemote(row);
         updatedCount++;
+      } else if (tableName === 'vaccinations') {
+        await this.vaccinationDao.upsertFromRemote(row);
+        updatedCount++;
+      } else if (tableName === 'reminders') {
+        await this.careReminderDao.upsertFromRemote(row);
+        updatedCount++;
       }
     }
 
@@ -159,8 +177,14 @@ export class SyncEngine {
       // 2. Pull remote updates for core tables
       const petsPull = await this.pullTable('pets');
       const weightsPull = await this.pullTable('weight_logs');
+      const vaccsPull = await this.pullTable('vaccinations');
+      const remindersPull = await this.pullTable('reminders');
 
-      const pulledCount = petsPull.updatedCount + weightsPull.updatedCount;
+      const pulledCount =
+        petsPull.updatedCount +
+        weightsPull.updatedCount +
+        vaccsPull.updatedCount +
+        remindersPull.updatedCount;
 
       return { pushedCount, pulledCount, errors };
     } finally {
