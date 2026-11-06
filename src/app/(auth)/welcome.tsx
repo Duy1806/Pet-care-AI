@@ -1,9 +1,9 @@
 /**
  * PawCare AI — Welcome / Onboarding Screen
  *
- * Full-width, uncropped pet photography onboarding pager.
- * Features: smooth slide transitions, animated page indicator,
- * clean typography without clutter or awkward image cropping.
+ * 3-slide parallax pager with full-bleed pet photos.
+ * Features: animated page indicator, glassmorphism floating card,
+ * fade/parallax transitions.
  *
  * All text in Vietnamese.
  */
@@ -22,18 +22,23 @@ import Animated, {
   useSharedValue,
   withSpring,
   withTiming,
+  interpolate,
+  Extrapolation,
   useAnimatedScrollHandler,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
+import { GlassCard } from '@/presentation/components/GlassCard';
 import { PrimaryButton } from '@/presentation/components/PrimaryButton';
 import { ThemeToggle } from '@/presentation/components/ThemeToggle';
 import { useAppTheme } from '@/presentation/theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // --- Slide data ---
 
@@ -110,28 +115,15 @@ export default function WelcomeScreen() {
   }, []);
 
   const renderSlide = useCallback(
-    ({ item }: ListRenderItemInfo<OnboardingSlide>) => <SlideItem item={item} />,
-    [],
+    ({ item, index }: ListRenderItemInfo<OnboardingSlide>) => (
+      <SlideItem item={item} index={index} scrollX={scrollX} />
+    ),
+    [scrollX],
   );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Top bar with ThemeToggle and Skip */}
-      <View style={[styles.topBar, { top: insets.top + spacing.xs }]}>
-        <ThemeToggle color={colors.text} />
-        <Pressable
-          onPress={handleSkip}
-          hitSlop={12}
-          accessibilityLabel="Bỏ qua giới thiệu"
-          style={styles.skipBtn}
-        >
-          <Text style={[typo.labelLarge, { color: colors.textSecondary, fontWeight: '600' }]}>
-            Bỏ qua
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* Slides Pager */}
+      {/* Slides */}
       <Animated.FlatList
         ref={flatListRef}
         data={slides}
@@ -145,95 +137,117 @@ export default function WelcomeScreen() {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={VIEWABILITY_CONFIG}
         bounces={false}
-        style={styles.flatList}
       />
 
-      {/* Bottom controls: Indicator, Action Button, Login Link */}
+      {/* Skip button (top right) */}
+      <View style={[styles.topBar, { top: insets.top + spacing.sm }]}>
+        <ThemeToggle color="rgba(255,255,255,0.9)" />
+        <Pressable
+          onPress={handleSkip}
+          hitSlop={12}
+          accessibilityLabel="Bỏ qua giới thiệu"
+        >
+          <Text style={[typo.labelLarge, { color: 'rgba(255,255,255,0.9)' }]}>
+            Bỏ qua
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Bottom floating glass card */}
       <View
         style={[
-          styles.bottomContainer,
+          styles.bottomCard,
           {
             paddingBottom: insets.bottom + spacing.md,
             paddingHorizontal: spacing.lg,
           },
         ]}
       >
-        {/* Page indicator */}
-        <View style={[styles.indicatorRow, { marginBottom: spacing.lg }]}>
-          {slides.map((_, i) => (
-            <PageDot key={i} index={i} activeIndex={activeIndex} />
-          ))}
-        </View>
+        <GlassCard padding="lg">
+          {/* Page indicator */}
+          <View style={[styles.indicatorRow, { marginBottom: spacing.md }]}>
+            {slides.map((_, i) => (
+              <PageDot key={i} index={i} activeIndex={activeIndex} />
+            ))}
+          </View>
 
-        <PrimaryButton
-          title={activeIndex < slides.length - 1 ? 'Tiếp theo' : 'Bắt đầu ngay'}
-          onPress={handleNext}
-        />
-
-        <Pressable
-          onPress={handleLogin}
-          style={[styles.loginLink, { minHeight: 44 }]}
-          accessibilityLabel="Tôi đã có tài khoản"
-        >
-          <Text style={[typo.bodyMedium, { color: colors.textSecondary }]}>
-            Tôi đã có tài khoản?{' '}
-            <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold', fontWeight: '700' }}>
-              Đăng nhập
-            </Text>
+          <Text style={[typo.headlineLarge, { color: colors.text, marginBottom: spacing.sm }]}>
+            {slides[activeIndex].title}
           </Text>
-        </Pressable>
+          <Text
+            style={[
+              typo.bodyMedium,
+              { color: colors.textSecondary, marginBottom: spacing.lg },
+            ]}
+          >
+            {slides[activeIndex].description}
+          </Text>
+
+          <PrimaryButton
+            title={activeIndex < slides.length - 1 ? 'Tiếp theo' : 'Bắt đầu'}
+            onPress={handleNext}
+          />
+
+          <Pressable
+            onPress={handleLogin}
+            style={[styles.loginLink, { minHeight: 48 }]}
+            accessibilityLabel="Tôi đã có tài khoản"
+          >
+            <Text style={[typo.bodyMedium, { color: colors.textSecondary }]}>
+              Tôi đã có tài khoản?{' '}
+              <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>
+                Đăng nhập
+              </Text>
+            </Text>
+          </Pressable>
+        </GlassCard>
       </View>
     </View>
   );
 }
 
-// --- Slide item displaying full, uncropped photo ---
+// --- Slide item with parallax ---
 
-function SlideItem({ item }: { item: OnboardingSlide }) {
-  const { colors, typography: typo } = useAppTheme();
-  const insets = useSafeAreaInsets();
+function SlideItem({
+  item,
+  index,
+  scrollX,
+}: {
+  item: OnboardingSlide;
+  index: number;
+  scrollX: SharedValue<number>;
+}) {
+  const imageAnimStyle = useAnimatedStyle(() => {
+    const inputRange = [
+      (index - 1) * SCREEN_WIDTH,
+      index * SCREEN_WIDTH,
+      (index + 1) * SCREEN_WIDTH,
+    ];
+    const translateX = interpolate(
+      scrollX.value,
+      inputRange,
+      [-SCREEN_WIDTH * 0.3, 0, SCREEN_WIDTH * 0.3],
+      Extrapolation.CLAMP,
+    );
+    return { transform: [{ translateX }] };
+  });
 
   return (
-    <View style={[styles.slide, { width: SCREEN_WIDTH, paddingTop: insets.top + 52 }]}>
-      {/* Full uncropped hero image container */}
-      <View style={styles.imageContainer}>
+    <View style={[styles.slide, { width: SCREEN_WIDTH }]}>
+      <Animated.View style={[StyleSheet.absoluteFill, imageAnimStyle]}>
         <Image
           source={item.image}
-          style={styles.heroImage}
+          style={[StyleSheet.absoluteFill, { width: SCREEN_WIDTH * 1.3 }]}
           contentFit="cover"
-          transition={250}
+          transition={300}
         />
-      </View>
-
-      {/* Slide text content */}
-      <View style={styles.textContainer}>
-        <Text
-          style={[
-            typo.headlineLarge,
-            {
-              color: colors.text,
-              textAlign: 'center',
-              marginBottom: 12,
-              fontWeight: '800',
-            },
-          ]}
-        >
-          {item.title}
-        </Text>
-        <Text
-          style={[
-            typo.bodyMedium,
-            {
-              color: colors.textSecondary,
-              textAlign: 'center',
-              lineHeight: 22,
-              paddingHorizontal: 8,
-            },
-          ]}
-        >
-          {item.description}
-        </Text>
-      </View>
+      </Animated.View>
+      {/* Dark gradient overlay */}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.55)']}
+        locations={[0.3, 1]}
+        style={StyleSheet.absoluteFill}
+      />
     </View>
   );
 }
@@ -246,7 +260,7 @@ function PageDot({ index, activeIndex }: { index: number; activeIndex: number })
 
   const dotStyle = useAnimatedStyle(() => ({
     width: withSpring(isActive ? 24 : 8, { damping: 15, stiffness: 200 }),
-    opacity: withTiming(isActive ? 1 : 0.35, { duration: 200 }),
+    opacity: withTiming(isActive ? 1 : 0.4, { duration: 200 }),
   }));
 
   return (
@@ -264,52 +278,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  flatList: {
-    flex: 1,
-  },
   slide: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  imageContainer: {
-    width: SCREEN_WIDTH,
-    aspectRatio: 1200 / 896,
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
-  },
-  heroImage: {
-    width: '100%',
-    height: '100%',
-  },
-  textContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 28,
-    alignItems: 'center',
-    width: '100%',
+    height: SCREEN_HEIGHT,
+    justifyContent: 'center',
   },
   topBar: {
     position: 'absolute',
-    left: 20,
-    right: 20,
+    left: 24,
+    right: 24,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     zIndex: 10,
   },
-  skipBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-  },
-  bottomContainer: {
-    width: '100%',
-    alignItems: 'stretch',
+  bottomCard: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   indicatorRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   dot: {
     height: 6,
