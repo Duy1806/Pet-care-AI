@@ -205,6 +205,44 @@ export class AdminRepository {
   }
 
   /**
+   * Delete / Soft-delete a user profile
+   */
+  async deleteUser(userId: string): Promise<boolean> {
+    try {
+      const currentUser = useAuthStore.getState().user;
+      if (!currentUser || currentUser.role !== 'admin') {
+        console.warn('[Security] Từ chối: Chỉ Quản trị viên mới được xóa người dùng.');
+        return false;
+      }
+
+      if (currentUser.id === userId) {
+        console.warn('[Security] Không thể tự xóa tài khoản của chính mình.');
+        return false;
+      }
+
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('profiles')
+        .update({ deleted_at: now })
+        .eq('id', userId);
+
+      if (error) {
+        // Fallback: try delete row directly if column deleted_at doesn't exist
+        const { error: delErr } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', userId);
+        return !delErr;
+      }
+
+      return true;
+    } catch (err) {
+      console.warn('[AdminRepository] deleteUser error:', err);
+      return false;
+    }
+  }
+
+  /**
    * Fetch all registered pets across the entire system (Master Pet Registry)
    */
   async getAllPets(): Promise<AdminPetItem[]> {

@@ -528,6 +528,30 @@ export default function AdminScreen() {
     );
   };
 
+  const handleDeleteUser = (targetUser: AdminUserItem) => {
+    Alert.alert(
+      'Xóa người dùng',
+      `Bạn có chắc chắn muốn xóa tài khoản "${targetUser.fullName}" khỏi hệ thống không? Dữ liệu người dùng này sẽ không còn hiển thị.`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa người dùng',
+          style: 'destructive',
+          onPress: async () => {
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            const ok = await adminRepo.deleteUser(targetUser.id);
+            if (ok) {
+              setUsersList((prev) => prev.filter((u) => u.id !== targetUser.id));
+              Alert.alert('Thành công', `Đã xóa người dùng "${targetUser.fullName}".`);
+            } else {
+              Alert.alert('Lỗi', 'Không thể xóa người dùng hoặc bạn đang cố xóa tài khoản của chính mình.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleSaveCategory = async () => {
     if (!newCategoryName.trim()) {
       Alert.alert('Thiếu thông tin', 'Vui lòng nhập tên danh mục.');
@@ -1592,21 +1616,34 @@ export default function AdminScreen() {
                         </Text>
                       </View>
 
-                      {/* Role action button */}
-                      <Pressable
-                        onPress={() => handleToggleUserRole(item)}
-                        hitSlop={8}
-                        style={[styles.roleActionBtn, { borderColor: colors.border }]}
-                      >
-                        <MaterialCommunityIcons
-                          name={item.role === 'admin' ? 'shield-remove-outline' : 'shield-account-outline'}
-                          size={16}
-                          color={item.role === 'admin' ? colors.error : colors.primary}
-                        />
-                        <Text style={[typo.labelSmall, { color: item.role === 'admin' ? colors.error : colors.primary, marginLeft: 4 }]}>
-                          {item.role === 'admin' ? 'Hạ quyền' : 'Thăng Admin'}
-                        </Text>
-                      </Pressable>
+                      {/* Action buttons */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Pressable
+                          onPress={() => handleToggleUserRole(item)}
+                          hitSlop={8}
+                          style={[styles.roleActionBtn, { borderColor: colors.border }]}
+                        >
+                          <MaterialCommunityIcons
+                            name={item.role === 'admin' ? 'shield-remove-outline' : 'shield-account-outline'}
+                            size={16}
+                            color={item.role === 'admin' ? colors.error : colors.primary}
+                          />
+                          <Text style={[typo.labelSmall, { color: item.role === 'admin' ? colors.error : colors.primary, marginLeft: 4 }]}>
+                            {item.role === 'admin' ? 'Hạ quyền' : 'Thăng Admin'}
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => handleDeleteUser(item)}
+                          hitSlop={8}
+                          style={[
+                            styles.roleActionBtn,
+                            { borderColor: '#FEE2E2', backgroundColor: '#FEF2F2', paddingHorizontal: 7 },
+                          ]}
+                        >
+                          <MaterialCommunityIcons name="trash-can-outline" size={16} color="#DC2626" />
+                        </Pressable>
+                      </View>
                     </View>
                   </View>
                 ))
