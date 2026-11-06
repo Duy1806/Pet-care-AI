@@ -193,6 +193,27 @@ export function AddVaccinationModal({
       currentPet?.name
     );
 
+    // Nếu nhập cả ngày đã tiêm và ngày hẹn tái chủng: tự động tạo thêm mũi chờ tiêm
+    if (success && isCompleted && nextDueAt.trim()) {
+      try {
+        const nextDoseNum = doseNumber ? doseNumber + 1 : null;
+        await addVaccination(
+          {
+            petId: activePetId,
+            type,
+            name: `${name.trim()} (Tái chủng)`,
+            status: 'planned',
+            doseNumber: nextDoseNum,
+            administeredAt: nextDueAt.trim(),
+            nextDueAt: null,
+            vetClinic: vetClinic.trim() || null,
+            note: `Lịch hẹn tái chủng từ mũi tiêm ngày ${administeredAt.trim() || getTodayString()}`,
+          },
+          currentPet?.name
+        );
+      } catch {}
+    }
+
     if (success) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       void loadAlerts(pets);

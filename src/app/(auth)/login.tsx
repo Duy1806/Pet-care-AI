@@ -245,24 +245,6 @@ export default function LoginScreen() {
               </Pressable>
             </Animated.View>
 
-            {/* Phân luồng bảo mật */}
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: colors.surfaceElevated,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: radius.md,
-                marginBottom: spacing.md,
-              }}
-            >
-              <MaterialCommunityIcons name="shield-check-outline" size={16} color={colors.primary} />
-              <Text style={[typo.caption, { color: colors.textSecondary, marginLeft: 6, flex: 1 }]}>
-                Hệ thống tự động nhận diện và phân luồng Quản trị viên (Admin) & Chủ nuôi (Owner).
-              </Text>
-            </View>
-
             {/* Login button */}
             <Animated.View entering={FadeInDown.delay(400).duration(400)}>
               <PrimaryButton

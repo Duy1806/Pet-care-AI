@@ -717,48 +717,113 @@ export default function AdminScreen() {
               {/* Primary KPI Grid */}
               <View style={styles.kpiGrid}>
                 {/* Total Users */}
-                <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <View style={[styles.kpiIconWrapper, { backgroundColor: '#DBEAFE' }]}>
-                    <MaterialCommunityIcons name="account-group" size={24} color="#1D4ED8" />
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setActiveTab('users');
+                    setSearchUserText('');
+                  }}
+                  style={({ pressed }) => [
+                    styles.kpiCard,
+                    { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={[styles.kpiIconWrapper, { backgroundColor: '#DBEAFE' }]}>
+                      <MaterialCommunityIcons name="account-group" size={24} color="#1D4ED8" />
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textTertiary} />
                   </View>
                   <Text style={[typo.titleLarge, { color: colors.text, fontWeight: '800', marginTop: 8 }]}>
                     {stats.totalUsers}
                   </Text>
                   <Text style={[typo.caption, { color: colors.textSecondary }]}>Chủ nuôi đã đăng ký</Text>
-                </View>
+                  <Text style={{ fontSize: 10, color: colors.primary, fontWeight: '700', marginTop: 4 }}>
+                    Xem chi tiết ➔
+                  </Text>
+                </Pressable>
 
                 {/* Total Pets */}
-                <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <View style={[styles.kpiIconWrapper, { backgroundColor: '#DCFCE7' }]}>
-                    <MaterialCommunityIcons name="paw" size={24} color="#15803D" />
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setActiveTab('pets');
+                    setPetSpeciesFilter('all');
+                    setSearchPetText('');
+                  }}
+                  style={({ pressed }) => [
+                    styles.kpiCard,
+                    { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={[styles.kpiIconWrapper, { backgroundColor: '#DCFCE7' }]}>
+                      <MaterialCommunityIcons name="paw" size={24} color="#15803D" />
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textTertiary} />
                   </View>
                   <Text style={[typo.titleLarge, { color: colors.text, fontWeight: '800', marginTop: 8 }]}>
                     {stats.totalPets}
                   </Text>
                   <Text style={[typo.caption, { color: colors.textSecondary }]}>Thú cưng trong hệ thống</Text>
-                </View>
+                  <Text style={{ fontSize: 10, color: '#15803D', fontWeight: '700', marginTop: 4 }}>
+                    Xem danh sách ➔
+                  </Text>
+                </Pressable>
 
                 {/* Total Vaccinations */}
-                <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <View style={[styles.kpiIconWrapper, { backgroundColor: '#E0E7FF' }]}>
-                    <MaterialCommunityIcons name="needle" size={24} color="#4338CA" />
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setActiveTab('vaccinations');
+                    setVaccineStatusFilter('all');
+                  }}
+                  style={({ pressed }) => [
+                    styles.kpiCard,
+                    { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.8 : 1 },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={[styles.kpiIconWrapper, { backgroundColor: '#E0E7FF' }]}>
+                      <MaterialCommunityIcons name="needle" size={24} color="#4338CA" />
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textTertiary} />
                   </View>
                   <Text style={[typo.titleLarge, { color: colors.text, fontWeight: '800', marginTop: 8 }]}>
                     {stats.totalVaccinations}
                   </Text>
                   <Text style={[typo.caption, { color: colors.textSecondary }]}>Hồ sơ tiêm phòng</Text>
-                </View>
+                  <Text style={{ fontSize: 10, color: '#4338CA', fontWeight: '700', marginTop: 4 }}>
+                    Xem sổ tiêm ➔
+                  </Text>
+                </Pressable>
 
                 {/* Overdue Vaccine Alerts */}
-                <View style={[styles.kpiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                  <View style={[styles.kpiIconWrapper, { backgroundColor: '#FEE2E2' }]}>
-                    <MaterialCommunityIcons name="alert-decagram" size={24} color="#B91C1C" />
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setActiveTab('vaccinations');
+                    setVaccineStatusFilter('overdue');
+                  }}
+                  style={({ pressed }) => [
+                    styles.kpiCard,
+                    { backgroundColor: colors.surface, borderColor: '#FCA5A5', opacity: pressed ? 0.8 : 1 },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={[styles.kpiIconWrapper, { backgroundColor: '#FEE2E2' }]}>
+                      <MaterialCommunityIcons name="alert-decagram" size={24} color="#B91C1C" />
+                    </View>
+                    <MaterialCommunityIcons name="chevron-right" size={18} color="#DC2626" />
                   </View>
                   <Text style={[typo.titleLarge, { color: '#B91C1C', fontWeight: '800', marginTop: 8 }]}>
                     {stats.overdueVaccinations}
                   </Text>
                   <Text style={[typo.caption, { color: colors.textSecondary }]}>Mũi tiêm quá hạn</Text>
-                </View>
+                  <Text style={{ fontSize: 10, color: '#DC2626', fontWeight: '700', marginTop: 4 }}>
+                    Xem ca trễ hạn ➔
+                  </Text>
+                </Pressable>
               </View>
 
               {/* Pet Ratio Card */}
@@ -772,7 +837,12 @@ export default function AdminScreen() {
 
                 <View style={{ marginTop: 12 }}>
                   <View style={styles.ratioBarContainer}>
-                    <View
+                    <Pressable
+                      onPress={() => {
+                        void Haptics.selectionAsync();
+                        setActiveTab('pets');
+                        setPetSpeciesFilter('dog');
+                      }}
                       style={[
                         styles.ratioSegment,
                         {
@@ -781,7 +851,12 @@ export default function AdminScreen() {
                         },
                       ]}
                     />
-                    <View
+                    <Pressable
+                      onPress={() => {
+                        void Haptics.selectionAsync();
+                        setActiveTab('pets');
+                        setPetSpeciesFilter('cat');
+                      }}
                       style={[
                         styles.ratioSegment,
                         {
@@ -793,19 +868,33 @@ export default function AdminScreen() {
                   </View>
 
                   <View style={styles.ratioLegend}>
-                    <View style={styles.legendItem}>
+                    <Pressable
+                      onPress={() => {
+                        void Haptics.selectionAsync();
+                        setActiveTab('pets');
+                        setPetSpeciesFilter('dog');
+                      }}
+                      style={styles.legendItem}
+                    >
                       <View style={[styles.legendDot, { backgroundColor: '#3B82F6' }]} />
                       <Text style={[typo.bodySmall, { color: colors.text }]}>
-                        Chó: <Text style={{ fontWeight: '700' }}>{stats.dogCount}</Text> ({stats.totalPets > 0 ? Math.round((stats.dogCount / stats.totalPets) * 100) : 0}%)
+                        Chó: <Text style={{ fontWeight: '700' }}>{stats.dogCount}</Text> ({stats.totalPets > 0 ? Math.round((stats.dogCount / stats.totalPets) * 100) : 0}%) ➔
                       </Text>
-                    </View>
+                    </Pressable>
 
-                    <View style={styles.legendItem}>
+                    <Pressable
+                      onPress={() => {
+                        void Haptics.selectionAsync();
+                        setActiveTab('pets');
+                        setPetSpeciesFilter('cat');
+                      }}
+                      style={styles.legendItem}
+                    >
                       <View style={[styles.legendDot, { backgroundColor: '#EC4899' }]} />
                       <Text style={[typo.bodySmall, { color: colors.text }]}>
-                        Mèo: <Text style={{ fontWeight: '700' }}>{stats.catCount}</Text> ({stats.totalPets > 0 ? Math.round((stats.catCount / stats.totalPets) * 100) : 0}%)
+                        Mèo: <Text style={{ fontWeight: '700' }}>{stats.catCount}</Text> ({stats.totalPets > 0 ? Math.round((stats.catCount / stats.totalPets) * 100) : 0}%) ➔
                       </Text>
-                    </View>
+                    </Pressable>
                   </View>
                 </View>
               </View>
@@ -820,29 +909,51 @@ export default function AdminScreen() {
                 </View>
 
                 <View style={{ marginTop: 12, gap: 10 }}>
-                  <View style={[styles.alertSummaryRow, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+                  <Pressable
+                    onPress={() => {
+                      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setActiveTab('vaccinations');
+                      setVaccineStatusFilter('overdue');
+                    }}
+                    style={({ pressed }) => [
+                      styles.alertSummaryRow,
+                      { backgroundColor: '#FEF2F2', borderColor: '#FECACA', opacity: pressed ? 0.8 : 1 },
+                    ]}
+                  >
                     <MaterialCommunityIcons name="alert-circle" size={20} color="#DC2626" />
                     <View style={{ flex: 1, marginLeft: 8 }}>
                       <Text style={[typo.labelMedium, { color: '#991B1B', fontWeight: '700' }]}>
                         {stats.overdueVaccinations} mũi tiêm bị trễ hạn
                       </Text>
                       <Text style={[typo.caption, { color: '#B91C1C' }]}>
-                        Cần nhắc nhở chủ nuôi đưa bé đi tiêm phòng sớm
+                        Chạm vào đây để xem chi tiết danh sách mũi tiêm quá hạn ➔
                       </Text>
                     </View>
-                  </View>
+                    <MaterialCommunityIcons name="chevron-right" size={18} color="#DC2626" />
+                  </Pressable>
 
-                  <View style={[styles.alertSummaryRow, { backgroundColor: '#FEF9C3', borderColor: '#FDE047' }]}>
+                  <Pressable
+                    onPress={() => {
+                      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setActiveTab('vaccinations');
+                      setVaccineStatusFilter('upcoming');
+                    }}
+                    style={({ pressed }) => [
+                      styles.alertSummaryRow,
+                      { backgroundColor: '#FEF9C3', borderColor: '#FDE047', opacity: pressed ? 0.8 : 1 },
+                    ]}
+                  >
                     <MaterialCommunityIcons name="calendar-clock" size={20} color="#CA8A04" />
                     <View style={{ flex: 1, marginLeft: 8 }}>
                       <Text style={[typo.labelMedium, { color: '#854D0E', fontWeight: '700' }]}>
                         {stats.upcomingVaccinations} mũi tiêm sắp đến hạn (14 ngày tới)
                       </Text>
                       <Text style={[typo.caption, { color: '#A16207' }]}>
-                        Đã sẵn sàng trong lịch nhắc nhở tự động
+                        Chạm vào đây để xem danh sách lịch tiêm sắp tới ➔
                       </Text>
                     </View>
-                  </View>
+                    <MaterialCommunityIcons name="chevron-right" size={18} color="#CA8A04" />
+                  </Pressable>
                 </View>
               </View>
 
@@ -2252,10 +2363,10 @@ export default function AdminScreen() {
               hitSlop={6}
               style={{
                 backgroundColor: colors.primary,
-                paddingHorizontal: 14,
-                paddingVertical: 6,
+                paddingHorizontal: 18,
+                paddingVertical: 8,
                 borderRadius: radius.full,
-                minWidth: 54,
+                minWidth: 64,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
@@ -2263,7 +2374,7 @@ export default function AdminScreen() {
               {isSavingProduct ? (
                 <ActivityIndicator size="small" color="#FFF" />
               ) : (
-                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 13 }}>Lưu</Text>
+                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14 }}>Lưu</Text>
               )}
             </Pressable>
           </View>
@@ -2274,17 +2385,17 @@ export default function AdminScreen() {
           >
             <ScrollView
               contentContainerStyle={{
-                paddingHorizontal: 14,
-                paddingTop: 10,
+                paddingHorizontal: 16,
+                paddingTop: 14,
                 paddingBottom: insets.bottom + 40,
-                gap: 10,
+                gap: 16,
               }}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
               {/* Product Name */}
               <View>
-                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 }}>
                   Tên sản phẩm *
                 </Text>
                 <TextInput
@@ -2292,14 +2403,14 @@ export default function AdminScreen() {
                   onChangeText={setFormProdName}
                   placeholder="Ví dụ: Sữa tắm dưỡng lông SOS cho chó mèo 530ml"
                   placeholderTextColor={colors.textTertiary}
-                  style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  style={[styles.modalInputMobile, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 />
               </View>
 
               {/* Price & Merchant */}
-              <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 }}>
                     Giá tham khảo (VNĐ)
                   </Text>
                   <TextInput
@@ -2308,12 +2419,12 @@ export default function AdminScreen() {
                     placeholder="Ví dụ: 125000"
                     placeholderTextColor={colors.textTertiary}
                     keyboardType="numeric"
-                    style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                    style={[styles.modalInputMobile, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                   />
                 </View>
 
                 <View style={{ flex: 1 }}>
-                  <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 }}>
                     Sàn / Nhà bán hàng
                   </Text>
                   <TextInput
@@ -2321,39 +2432,44 @@ export default function AdminScreen() {
                     onChangeText={setFormProdMerchant}
                     placeholder="Shopee, Lazada, Tiki..."
                     placeholderTextColor={colors.textTertiary}
-                    style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                    style={[styles.modalInputMobile, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                   />
                 </View>
               </View>
 
               {/* Quick Merchant Selector */}
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                {['Shopee', 'Lazada', 'Tiki', 'TikTok Shop', 'Đối tác'].map((m) => {
-                  const isSel = formProdMerchant === m;
-                  return (
-                    <Pressable
-                      key={m}
-                      onPress={() => setFormProdMerchant(m)}
-                      style={{
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: radius.sm,
-                        backgroundColor: isSel ? '#FEE2E2' : colors.surfaceElevated,
-                        borderColor: isSel ? '#DC2626' : colors.border,
-                        borderWidth: 1,
-                      }}
-                    >
-                      <Text style={{ fontSize: 10, fontWeight: isSel ? '700' : '500', color: isSel ? '#DC2626' : colors.textSecondary }}>
-                        {m}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+              <View>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6 }}>
+                  Gợi ý nhanh sàn thương mại:
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {['Shopee', 'Lazada', 'Tiki', 'TikTok Shop', 'Đối tác'].map((m) => {
+                    const isSel = formProdMerchant === m;
+                    return (
+                      <Pressable
+                        key={m}
+                        onPress={() => setFormProdMerchant(m)}
+                        style={{
+                          paddingHorizontal: 14,
+                          paddingVertical: 7,
+                          borderRadius: 8,
+                          backgroundColor: isSel ? '#FEE2E2' : colors.surfaceElevated,
+                          borderColor: isSel ? '#DC2626' : colors.border,
+                          borderWidth: 1,
+                        }}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: isSel ? '700' : '600', color: isSel ? '#DC2626' : colors.textSecondary }}>
+                          {m}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
 
               {/* Affiliate URL */}
               <View>
-                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 }}>
                   Đường dẫn liên kết Affiliate (Shopee, Lazada...) *
                 </Text>
                 <TextInput
@@ -2361,21 +2477,23 @@ export default function AdminScreen() {
                   onChangeText={setFormProdAffiliateUrl}
                   placeholder="https://shope.ee/... hoặc https://s.lazada.vn/..."
                   placeholderTextColor={colors.textTertiary}
-                  style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={[styles.modalInputMobile, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 />
               </View>
 
               {/* Product Category */}
               <View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                  <Text style={[typo.labelSmall, { color: colors.text, fontWeight: '700' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>
                     Danh mục sản phẩm
                   </Text>
-                  <Pressable onPress={() => setIsProdCategoryModalVisible(true)} hitSlop={6}>
-                    <Text style={{ fontSize: 11, color: colors.primary, fontWeight: '700' }}>+ Thêm danh mục</Text>
+                  <Pressable onPress={() => setIsProdCategoryModalVisible(true)} hitSlop={8}>
+                    <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '700' }}>+ Thêm danh mục</Text>
                   </Pressable>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
                   {productCategories.map((c) => {
                     const isSel = formProdCategoryId === c.id;
                     return (
@@ -2383,15 +2501,15 @@ export default function AdminScreen() {
                         key={c.id}
                         onPress={() => setFormProdCategoryId(c.id)}
                         style={{
-                          paddingHorizontal: 10,
-                          paddingVertical: 5,
-                          borderRadius: radius.sm,
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
+                          borderRadius: 8,
                           backgroundColor: isSel ? colors.primary : colors.surface,
                           borderColor: isSel ? colors.primary : colors.border,
                           borderWidth: 1,
                         }}
                       >
-                        <Text style={{ fontSize: 11, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.text }}>
+                        <Text style={{ fontSize: 13, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.text }}>
                           {c.name}
                         </Text>
                       </Pressable>
@@ -2402,10 +2520,10 @@ export default function AdminScreen() {
 
               {/* Pet Type Target (Strictly Dog & Cat Only) */}
               <View>
-                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 }}>
                   Loài thú cưng phù hợp (Chó & Mèo)
                 </Text>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
                   {[
                     { key: 'all', label: 'Tất cả (Chó & Mèo)', icon: 'paw' },
                     { key: 'dog', label: 'Chó cưng', icon: 'dog' },
@@ -2421,21 +2539,21 @@ export default function AdminScreen() {
                           flexDirection: 'row',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          paddingVertical: 7,
-                          paddingHorizontal: 6,
-                          borderRadius: radius.sm,
+                          paddingVertical: 10,
+                          paddingHorizontal: 8,
+                          borderRadius: 10,
                           backgroundColor: isSel ? colors.primary : colors.surface,
                           borderColor: isSel ? colors.primary : colors.border,
                           borderWidth: 1,
-                          gap: 4,
+                          gap: 6,
                         }}
                       >
                         <MaterialCommunityIcons
                           name={s.icon as any}
-                          size={14}
+                          size={18}
                           color={isSel ? '#FFFFFF' : colors.textSecondary}
                         />
-                        <Text style={{ fontSize: 11, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.text }}>
+                        <Text style={{ fontSize: 13, fontWeight: isSel ? '700' : '600', color: isSel ? '#FFF' : colors.text }}>
                           {s.label}
                         </Text>
                       </Pressable>
@@ -2446,7 +2564,7 @@ export default function AdminScreen() {
 
               {/* Product Image URL */}
               <View>
-                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 }}>
                   Đường dẫn ảnh sản phẩm (Image URL)
                 </Text>
                 <TextInput
@@ -2457,12 +2575,14 @@ export default function AdminScreen() {
                   }}
                   placeholder="https://..."
                   placeholderTextColor={colors.textTertiary}
-                  style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={[styles.modalInputMobile, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 />
                 {Boolean(formProdImageUrl.trim()) &&
                   (formProdImageUrl.trim().startsWith('http://') || formProdImageUrl.trim().startsWith('https://')) &&
                   !prodImageError && (
-                    <View style={{ height: 85, borderRadius: 6, marginTop: 6, overflow: 'hidden', backgroundColor: colors.surfaceElevated }}>
+                    <View style={{ height: 120, borderRadius: 10, marginTop: 8, overflow: 'hidden', backgroundColor: colors.surfaceElevated }}>
                       <Image
                         source={{ uri: formProdImageUrl.trim() }}
                         style={{ width: '100%', height: '100%' }}
@@ -2475,7 +2595,7 @@ export default function AdminScreen() {
 
               {/* Description */}
               <View>
-                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 }}>
                   Mô tả sản phẩm & Ưu điểm nổi bật
                 </Text>
                 <TextInput
@@ -2484,21 +2604,21 @@ export default function AdminScreen() {
                   placeholder="Mô tả công dụng, thành phần, cách dùng..."
                   placeholderTextColor={colors.textTertiary}
                   multiline
-                  numberOfLines={3}
-                  style={[styles.modalInputCompact, { height: 60, backgroundColor: colors.surface, borderColor: colors.border, color: colors.text, textAlignVertical: 'top' }]}
+                  numberOfLines={4}
+                  style={[styles.modalInputMobile, { height: 90, backgroundColor: colors.surface, borderColor: colors.border, color: colors.text, textAlignVertical: 'top' }]}
                 />
               </View>
 
               {/* Linked Knowledge Articles */}
               {adminArticles.length > 0 && (
-                <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 8, gap: 6 }}>
-                  <Text style={[typo.labelSmall, { color: colors.text, fontWeight: '700' }]}>
+                <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, gap: 8 }}>
+                  <Text style={{ fontSize: 14, color: colors.text, fontWeight: '700' }}>
                     Gắn vào bài viết kiến thức liên quan ({formProdLinkedArticleIds.length})
                   </Text>
-                  <Text style={{ fontSize: 10, color: colors.textSecondary }}>
+                  <Text style={{ fontSize: 12, color: colors.textSecondary }}>
                     Sản phẩm sẽ xuất hiện ở mục "Sản phẩm liên quan khuyên dùng" trong bài viết
                   </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: 4 }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 4 }}>
                     {adminArticles.map((art) => {
                       const isLinked = formProdLinkedArticleIds.includes(art.id);
                       return (
@@ -2514,21 +2634,21 @@ export default function AdminScreen() {
                           style={{
                             flexDirection: 'row',
                             alignItems: 'center',
-                            paddingHorizontal: 8,
-                            paddingVertical: 5,
-                            borderRadius: radius.sm,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            borderRadius: 8,
                             backgroundColor: isLinked ? colors.primaryContainer || '#DBEAFE' : colors.surfaceElevated,
                             borderColor: isLinked ? colors.primary : colors.border,
                             borderWidth: 1,
-                            gap: 4,
+                            gap: 6,
                           }}
                         >
                           <MaterialCommunityIcons
                             name={isLinked ? 'checkbox-marked' : 'checkbox-blank-outline'}
-                            size={14}
+                            size={16}
                             color={isLinked ? colors.primary : colors.textTertiary}
                           />
-                          <Text style={{ fontSize: 11, fontWeight: isLinked ? '700' : '500', color: isLinked ? colors.primary : colors.text }} numberOfLines={1}>
+                          <Text style={{ fontSize: 13, fontWeight: isLinked ? '700' : '500', color: isLinked ? colors.primary : colors.text }} numberOfLines={1}>
                             {art.title}
                           </Text>
                         </Pressable>
@@ -2540,10 +2660,10 @@ export default function AdminScreen() {
 
               {/* Status Selector */}
               <View>
-                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 }}>
                   Trạng thái sản phẩm
                 </Text>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
                   {[
                     { key: 'active', label: '✅ Đang hiển thị', color: '#16A34A' },
                     { key: 'draft', label: '📝 Bản nháp', color: '#64748B' },
@@ -2556,16 +2676,16 @@ export default function AdminScreen() {
                         onPress={() => setFormProdStatus(st.key as ProductStatus)}
                         style={{
                           flex: 1,
-                          paddingVertical: 7,
+                          paddingVertical: 10,
                           alignItems: 'center',
                           justifyContent: 'center',
-                          borderRadius: radius.sm,
+                          borderRadius: 8,
                           backgroundColor: isSel ? colors.surfaceElevated : colors.surface,
                           borderColor: isSel ? st.color : colors.border,
                           borderWidth: isSel ? 2 : 1,
                         }}
                       >
-                        <Text style={{ fontSize: 11, fontWeight: isSel ? '700' : '500', color: isSel ? st.color : colors.textSecondary }}>
+                        <Text style={{ fontSize: 13, fontWeight: isSel ? '700' : '500', color: isSel ? st.color : colors.textSecondary }}>
                           {st.label}
                         </Text>
                       </Pressable>
@@ -2881,6 +3001,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
+  },
+  modalInputMobile: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 15,
+    minHeight: 48,
   },
   modalInputCompact: {
     borderWidth: 1,

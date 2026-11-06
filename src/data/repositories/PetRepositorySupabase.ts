@@ -105,8 +105,6 @@ export class PetRepositorySupabase implements PetRepository {
         throw new Error(mapSupabaseError(error));
       }
 
-      const pets = (data || []).map((row: any) => mapRowToPet(row));
-
       // Asynchronously mirror remote pets into local SQLite
       try {
         const db = await getDatabase();
@@ -114,11 +112,16 @@ export class PetRepositorySupabase implements PetRepository {
         for (const row of data || []) {
           await petDao.upsertFromRemote(row);
         }
+        // Read from local SQLite to guarantee pending offline pets are included
+        const localPets = await petDao.getAll(ownerId);
+        if (localPets.length > 0) {
+          return localPets.map(mapLocalPetToEntity);
+        }
       } catch {
         // Local SQLite mirror failure ignored
       }
 
-      return pets;
+      return (data || []).map((row: any) => mapRowToPet(row));
     } catch {
       // Offline fallback: load cached pets from local SQLite
       try {

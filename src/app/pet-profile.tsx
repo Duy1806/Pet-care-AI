@@ -173,8 +173,12 @@ export default function PetProfileScreen() {
     if (!currentPet) return { completed: 0, planned: 0, total: 0 };
     const list = records.filter((r) => r.petId === currentPet.id);
     const completed = list.filter((r) => r.status === 'completed').length;
-    const planned = list.filter((r) => r.status === 'planned').length;
-    return { completed, planned, total: list.length };
+    const explicitPlanned = list.filter((r) => r.status === 'planned');
+    const completedWithUpcoming = list.filter(
+      (r) => r.status === 'completed' && Boolean(r.nextDueAt) && !explicitPlanned.some((p) => p.administeredAt === r.nextDueAt)
+    );
+    const planned = explicitPlanned.length + completedWithUpcoming.length;
+    return { completed, planned, total: completed + planned };
   }, [records, currentPet]);
 
   // Daily Nutrition calculation for current pet

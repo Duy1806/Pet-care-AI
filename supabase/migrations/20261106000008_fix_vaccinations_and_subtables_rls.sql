@@ -22,6 +22,39 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 
+-- 1.1. PETS TABLE POLICIES (Allow Admin and Authenticated Owners)
+DROP POLICY IF EXISTS "pets_select_owner_or_admin" ON public.pets;
+CREATE POLICY "pets_select_owner_or_admin" ON public.pets
+    FOR SELECT
+    USING (
+        (owner_id = auth.uid() AND deleted_at IS NULL)
+        OR public.is_admin()
+        OR auth.role() = 'authenticated'
+    );
+
+DROP POLICY IF EXISTS "pets_insert_owner" ON public.pets;
+CREATE POLICY "pets_insert_owner" ON public.pets
+    FOR INSERT
+    WITH CHECK (
+        owner_id = auth.uid()
+        OR public.is_admin()
+        OR auth.role() = 'authenticated'
+    );
+
+DROP POLICY IF EXISTS "pets_update_owner" ON public.pets;
+CREATE POLICY "pets_update_owner" ON public.pets
+    FOR UPDATE
+    USING (
+        owner_id = auth.uid()
+        OR public.is_admin()
+        OR auth.role() = 'authenticated'
+    )
+    WITH CHECK (
+        owner_id = auth.uid()
+        OR public.is_admin()
+        OR auth.role() = 'authenticated'
+    );
+
 -- 2. VACCINATIONS POLICIES
 DROP POLICY IF EXISTS "vaccinations_select" ON public.vaccinations;
 CREATE POLICY "vaccinations_select" ON public.vaccinations
@@ -140,3 +173,4 @@ CREATE POLICY "health_logs_update" ON public.health_logs
     FOR UPDATE
     USING (public.is_pet_owner(pet_id) OR public.is_admin() OR auth.role() = 'authenticated')
     WITH CHECK (public.is_pet_owner(pet_id) OR public.is_admin() OR auth.role() = 'authenticated');
+

@@ -197,6 +197,30 @@ export default function AddVaccinationScreen() {
       targetPetName
     );
 
+    // Nếu người dùng nhập cả ngày đã tiêm và ngày hẹn tái chủng/tiêm tiếp:
+    // Tự động tạo thêm bản ghi mũi chờ tiêm (status = 'planned') cho ngày hẹn đó!
+    if (success && isCompleted && nextDueAt.trim()) {
+      try {
+        const nextDoseNum = doseNumber ? doseNumber + 1 : null;
+        await addVaccination(
+          {
+            petId: targetPetId,
+            type,
+            name: `${name.trim()} (Tái chủng)`,
+            status: 'planned',
+            doseNumber: nextDoseNum,
+            administeredAt: nextDueAt.trim(),
+            nextDueAt: null,
+            vetClinic: vetClinic.trim() || null,
+            note: `Lịch hẹn tái chủng từ mũi tiêm ngày ${administeredAt.trim() || getTodayString()}`,
+          },
+          targetPetName
+        );
+      } catch {
+        // Tự động lên lịch mũi hẹn không làm gián đoạn thành công của mũi chính
+      }
+    }
+
     if (success) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       void loadAlerts(pets);
@@ -206,7 +230,9 @@ export default function AddVaccinationScreen() {
       Alert.alert(
         'Thành công',
         isCompleted
-          ? `Đã lưu mũi tiêm "${name.trim()}" vào sổ sức khỏe của bé ${targetPetName}!`
+          ? nextDueAt.trim()
+            ? `Đã lưu mũi đã tiêm "${name.trim()}" và tự động tạo lịch hẹn tái chủng vào ngày ${nextDueAt.trim()} cho bé ${targetPetName}!`
+            : `Đã lưu mũi tiêm "${name.trim()}" vào sổ sức khỏe của bé ${targetPetName}!`
           : `Đã lên lịch hẹn tiêm "${name.trim()}" vào ngày ${scheduledDate.trim()} cho bé ${targetPetName}. Hệ thống sẽ gửi thông báo nhắc lịch trước 1 ngày và trong ngày tiêm!`,
         [
           {
