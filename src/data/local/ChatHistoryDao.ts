@@ -17,7 +17,7 @@ export class ChatHistoryDao {
     try {
       const db = await getDatabase();
 
-      // 1. Ensure chat_conversations table exists
+      // 1. Ensure tables exist (without dependent composite index on chat_messages first)
       await db.execAsync(`
         CREATE TABLE IF NOT EXISTS chat_conversations (
           id TEXT PRIMARY KEY,
@@ -27,12 +27,6 @@ export class ChatHistoryDao {
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_conversations_user 
-          ON chat_conversations(user_id, updated_at DESC);
-      `);
-
-      // 2. Ensure chat_messages table exists
-      await db.execAsync(`
         CREATE TABLE IF NOT EXISTS chat_messages (
           id TEXT PRIMARY KEY,
           conversation_id TEXT,
@@ -41,11 +35,9 @@ export class ChatHistoryDao {
           content TEXT,
           created_at INTEGER NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_messages_conv 
-          ON chat_messages(conversation_id, created_at ASC);
       `);
 
-      // 3. Inspect columns of chat_messages to migrate legacy schema if needed
+      // 2. Inspect columns of chat_messages to migrate legacy schema safely
       const msgCols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(chat_messages);`);
       const colSet = new Set(msgCols.map((c) => c.name));
 
@@ -58,8 +50,22 @@ export class ChatHistoryDao {
       if (!colSet.has('created_at')) {
         await db.execAsync(`ALTER TABLE chat_messages ADD COLUMN created_at INTEGER;`);
       }
+      if (!colSet.has('user_id')) {
+        await db.execAsync(`ALTER TABLE chat_messages ADD COLUMN user_id TEXT NOT NULL DEFAULT 'anonymous';`);
+      }
+      if (!colSet.has('sender')) {
+        await db.execAsync(`ALTER TABLE chat_messages ADD COLUMN sender TEXT NOT NULL DEFAULT 'user';`);
+      }
 
-      // If legacy messages exist with `text` but `content` is null, copy `text` into `content`
+      // 3. Now that conversation_id and created_at definitely exist, safely create indexes
+      await db.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_conversations_user 
+          ON chat_conversations(user_id, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_messages_conv 
+          ON chat_messages(conversation_id, created_at ASC);
+      `);
+
+      // 4. If legacy messages exist with `text` but `content` is null, copy `text` into `content`
       if (colSet.has('text')) {
         try {
           await db.execAsync(`
@@ -85,35 +91,39 @@ export class ChatHistoryDao {
         }
       }
 
-      // 4. Migrate any orphaned messages into a default conversation
-      const orphaned = await db.getAllAsync<any>(
-        `SELECT id, user_id, content, created_at, text, timestamp 
-         FROM chat_messages 
-         WHERE conversation_id IS NULL OR conversation_id = '' 
-         ORDER BY created_at ASC`
-      );
-
-      if (orphaned.length > 0) {
-        const defaultConvId = 'conv_legacy_default';
-        const firstMsg = orphaned[0];
-        const titleText = (firstMsg.content || firstMsg.text || 'Tư vấn sức khỏe thú cưng')
-          .slice(0, 36)
-          .trim();
-        const convTime = firstMsg.created_at || firstMsg.timestamp || Date.now();
-        const convUserId = firstMsg.user_id || 'anonymous';
-
-        await db.runAsync(
-          `INSERT OR IGNORE INTO chat_conversations (id, user_id, title, pet_name, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [defaultConvId, convUserId, titleText, null, convTime, convTime]
+      // 5. Migrate any orphaned messages into a default conversation
+      try {
+        const orphaned = await db.getAllAsync<any>(
+          `SELECT id, user_id, content, created_at 
+           FROM chat_messages 
+           WHERE conversation_id IS NULL OR conversation_id = '' 
+           ORDER BY created_at ASC`
         );
 
-        await db.runAsync(
-          `UPDATE chat_messages 
-           SET conversation_id = ? 
-           WHERE conversation_id IS NULL OR conversation_id = ''`,
-          [defaultConvId]
-        );
+        if (orphaned.length > 0) {
+          const defaultConvId = 'conv_legacy_default';
+          const firstMsg = orphaned[0];
+          const titleText = (firstMsg.content || 'Tư vấn sức khỏe thú cưng')
+            .slice(0, 36)
+            .trim();
+          const convTime = firstMsg.created_at || Date.now();
+          const convUserId = firstMsg.user_id || 'anonymous';
+
+          await db.runAsync(
+            `INSERT OR IGNORE INTO chat_conversations (id, user_id, title, pet_name, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [defaultConvId, convUserId, titleText, null, convTime, convTime]
+          );
+
+          await db.runAsync(
+            `UPDATE chat_messages 
+             SET conversation_id = ? 
+             WHERE conversation_id IS NULL OR conversation_id = ''`,
+            [defaultConvId]
+          );
+        }
+      } catch {
+        // ignore legacy orphaned migration errors
       }
 
       this.isInitialized = true;

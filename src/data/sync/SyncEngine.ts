@@ -21,17 +21,64 @@ export interface RemoteSyncClient {
   pullChanges(table: string, since: string | null): Promise<Record<string, any>[]>;
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Default Remote Client using real Supabase */
 export const defaultSupabaseRemoteClient: RemoteSyncClient = {
   async upsert(table: string, payload: Record<string, any>): Promise<void> {
     // Strip local-only sync columns before pushing to Supabase
-    const { sync_status, last_synced_at, local_updated_at, ...serverPayload } = payload;
+    const { sync_status, last_synced_at, local_updated_at, ...rawServerPayload } = payload;
     void sync_status;
     void last_synced_at;
     void local_updated_at;
 
+    const serverPayload: Record<string, any> = { ...rawServerPayload };
+
+    // Resolve owner_id: if not a valid UUID (e.g. guest or offline account), replace with real authenticated user id
+    let authUserId: string | null = null;
+    try {
+      const { data } = await supabase.auth.getSession();
+      authUserId = data.session?.user?.id || null;
+    } catch {}
+
+    if (serverPayload.owner_id !== undefined) {
+      if (!UUID_REGEX.test(serverPayload.owner_id) && authUserId) {
+        serverPayload.owner_id = authUserId;
+      }
+    }
+
+    if (table === 'pets') {
+      if (serverPayload.is_neutered !== undefined) {
+        serverPayload.is_neutered = Boolean(serverPayload.is_neutered);
+      }
+      if (serverPayload.breed_id && !UUID_REGEX.test(serverPayload.breed_id)) {
+        serverPayload.breed_id = null;
+      }
+      if (serverPayload.current_weight_kg !== undefined && serverPayload.current_weight_kg !== null) {
+        serverPayload.current_weight_kg = Number(serverPayload.current_weight_kg);
+      }
+    } else if (table === 'reminders') {
+      if (serverPayload.is_done !== undefined) {
+        serverPayload.is_done = Boolean(serverPayload.is_done);
+      }
+    } else if (table === 'weight_logs') {
+      if (serverPayload.weight_kg !== undefined) {
+        serverPayload.weight_kg = Number(serverPayload.weight_kg);
+      }
+    } else if (table === 'vaccinations') {
+      if (serverPayload.administered_at) {
+        serverPayload.administered_at = new Date(serverPayload.administered_at).toISOString();
+      }
+      if (serverPayload.next_due_at) {
+        serverPayload.next_due_at = new Date(serverPayload.next_due_at).toISOString();
+      }
+    }
+
     const { error } = await supabase.from(table).upsert(serverPayload);
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.warn(`[SyncEngine] Upsert failed for table '${table}':`, error.message, serverPayload);
+      throw new Error(error.message);
+    }
   },
 
   async softDelete(table: string, id: string, deletedAt: string): Promise<void> {
@@ -110,6 +157,7 @@ export class SyncEngine {
         pushedCount++;
       } catch (err: any) {
         const msg = err?.message || 'Sync failed';
+        console.warn(`[SyncEngine] pushOutbox error on ${entry.entity_table}:${entry.entity_id}:`, msg);
         errors.push(`${entry.entity_table}:${entry.entity_id} - ${msg}`);
         await this.outboxDao.markFailed(entry.id, msg);
       }

@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import type { CareCategory, CareReminder, CareSuggestion } from '@/domain/entities/CareReminder';
 import { careReminderRepository } from '@/data/repositories/CareReminderRepositorySupabase';
+import { useSyncStore } from './useSyncStore';
 
 function getTodayString(): string {
   return new Date().toISOString().split('T')[0];
@@ -139,6 +140,11 @@ export const useCareScheduleStore = create<CareScheduleState>((set, get) => ({
       allHistoryRecords: [created, ...state.allHistoryRecords],
     }));
 
+    void useSyncStore.getState().refreshPendingCount();
+    if (useSyncStore.getState().isOnline) {
+      void useSyncStore.getState().syncNow();
+    }
+
     return created;
   },
 
@@ -173,6 +179,11 @@ export const useCareScheduleStore = create<CareScheduleState>((set, get) => ({
           : state.historyReminders,
       allHistoryRecords: [created, ...state.allHistoryRecords],
     }));
+
+    void useSyncStore.getState().refreshPendingCount();
+    if (useSyncStore.getState().isOnline) {
+      void useSyncStore.getState().syncNow();
+    }
   },
 
   toggleReminder: async (id: string) => {
@@ -194,6 +205,11 @@ export const useCareScheduleStore = create<CareScheduleState>((set, get) => ({
     });
 
     await careReminderRepository.updateDone(id, newDone);
+
+    void useSyncStore.getState().refreshPendingCount();
+    if (useSyncStore.getState().isOnline) {
+      void useSyncStore.getState().syncNow();
+    }
   },
 
   deleteReminder: async (id: string) => {
@@ -204,5 +220,10 @@ export const useCareScheduleStore = create<CareScheduleState>((set, get) => ({
     }));
 
     await careReminderRepository.delete(id);
+
+    void useSyncStore.getState().refreshPendingCount();
+    if (useSyncStore.getState().isOnline) {
+      void useSyncStore.getState().syncNow();
+    }
   },
 }));

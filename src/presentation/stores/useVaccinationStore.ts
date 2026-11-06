@@ -16,6 +16,7 @@ import type {
 import type { Pet } from '../../domain/entities/Pet';
 import { vaccinationRepository } from '../../di/container';
 import { NotificationService } from '../../data/services/NotificationService';
+import { useSyncStore } from './useSyncStore';
 
 interface VaccinationState {
   records: VaccinationRecord[];
@@ -142,6 +143,10 @@ export const useVaccinationStore = create<VaccinationState>((set, get) => ({
         records: [newRecord, ...state.records],
         isLoading: false,
       }));
+      void useSyncStore.getState().refreshPendingCount();
+      if (useSyncStore.getState().isOnline) {
+        void useSyncStore.getState().syncNow();
+      }
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Không thể lưu mũi tiêm.';
@@ -212,6 +217,10 @@ export const useVaccinationStore = create<VaccinationState>((set, get) => ({
         alerts: state.alerts.filter((a) => a.record.id !== id),
         isLoading: false,
       }));
+      void useSyncStore.getState().refreshPendingCount();
+      if (useSyncStore.getState().isOnline) {
+        void useSyncStore.getState().syncNow();
+      }
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Không thể xóa mũi tiêm.';

@@ -5,6 +5,7 @@
  * Integrates with NetInfo and provides simulated offline mode for dev testing.
  */
 import NetInfo from '@react-native-community/netinfo';
+import { AppState } from 'react-native';
 import { create } from 'zustand';
 import { getDatabase } from '../../data/local/database';
 import { OutboxDao } from '../../data/local/OutboxDao';
@@ -41,9 +42,14 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       const count = await outboxDao.getPendingCount();
       set({ pendingCount: count });
 
-      // Listen to real network changes
+      // Immediate network check
+      const netState = await NetInfo.fetch();
+      const initialConnected = Boolean(netState.isConnected);
+      set({ isOnline: initialConnected });
+
+      // 1. Listen to real network changes
       NetInfo.addEventListener((state) => {
-        const connected = Boolean(state.isConnected && state.isInternetReachable !== false);
+        const connected = Boolean(state.isConnected);
         const currentSim = get().isSimulatedOffline;
         const online = currentSim ? false : connected;
         const wasOffline = !get().isOnline;
@@ -54,6 +60,31 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           void get().syncNow();
         }
       });
+
+      // 2. Listen to AppState (when user returns to app after enabling Wifi in OS settings)
+      AppState.addEventListener('change', (nextAppState) => {
+        if (nextAppState === 'active') {
+          void NetInfo.fetch().then((s) => {
+            if (s.isConnected && !get().isSimulatedOffline) {
+              set({ isOnline: true });
+              void get().syncNow();
+            }
+          });
+        }
+      });
+
+      // 3. Background periodic sync check every 15 seconds
+      setInterval(() => {
+        const state = get();
+        if (state.isOnline && !state.isSyncing) {
+          void state.syncNow();
+        }
+      }, 15000);
+
+      // Trigger initial sync if online and has pending items
+      if (initialConnected) {
+        void get().syncNow();
+      }
     } catch {
       // ignore
     }
@@ -86,23 +117,33 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   },
 
   syncNow: async () => {
-    const { isOnline, isSyncing } = get();
-    if (!isOnline || isSyncing) return false;
-
-    set({ isSyncing: true, lastError: null });
+    const { isSyncing, isSimulatedOffline } = get();
+    if (isSyncing || isSimulatedOffline) return false;
 
     try {
       const db = await getDatabase();
+      const outboxDao = new OutboxDao(db);
+      const count = await outboxDao.getPendingCount();
+      set({ pendingCount: count });
+
+      // If pending count is 0 and we are just pulling updates, verify connection
+      const net = await NetInfo.fetch();
+      if (!net.isConnected) {
+        set({ isOnline: false });
+        return false;
+      }
+      set({ isOnline: true });
+
+      set({ isSyncing: true, lastError: null });
+
       const engine = new SyncEngine(db);
       const result = await engine.syncAll();
 
-      const outboxDao = new OutboxDao(db);
-      const pending = await outboxDao.getPendingCount();
-
+      const remainingPending = await outboxDao.getPendingCount();
       const hasErrors = result.errors.length > 0;
       set({
         isSyncing: false,
-        pendingCount: pending,
+        pendingCount: remainingPending,
         lastSyncedAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
         lastError: hasErrors ? result.errors[0] : null,
       });

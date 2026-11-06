@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import type { Pet } from '@/domain/entities/Pet';
 import type { CreatePetInput } from '@/domain/repositories/PetRepository';
 import { petRepository } from '@/di/container';
+import { useSyncStore } from './useSyncStore';
 
 interface PetState {
   pets: Pet[];
@@ -57,6 +58,10 @@ export const usePetStore = create<PetState>((set, get) => ({
         selectedPet: created,
         isLoading: false,
       });
+      void useSyncStore.getState().refreshPendingCount();
+      if (useSyncStore.getState().isOnline) {
+        void useSyncStore.getState().syncNow();
+      }
       return created;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Không thể thêm thú cưng';
@@ -75,6 +80,10 @@ export const usePetStore = create<PetState>((set, get) => ({
         selectedPet: get().selectedPet?.id === id ? updated : get().selectedPet,
         isLoading: false,
       });
+      void useSyncStore.getState().refreshPendingCount();
+      if (useSyncStore.getState().isOnline) {
+        void useSyncStore.getState().syncNow();
+      }
       return updated;
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Không thể cập nhật thú cưng';
@@ -93,6 +102,10 @@ export const usePetStore = create<PetState>((set, get) => ({
         selectedPet: get().selectedPet?.id === id ? (remaining[0] || null) : get().selectedPet,
         isLoading: false,
       });
+      void useSyncStore.getState().refreshPendingCount();
+      if (useSyncStore.getState().isOnline) {
+        void useSyncStore.getState().syncNow();
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Không thể xóa thú cưng';
       set({ isLoading: false, error: msg });
