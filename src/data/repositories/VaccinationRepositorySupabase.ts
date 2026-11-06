@@ -80,12 +80,17 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
         throw new Error(mapSupabaseError(error));
       }
 
-      // Asynchronously mirror into local SQLite
+      // Asynchronously mirror into local SQLite and load combined records
       try {
         const db = await getDatabase();
         const dao = new VaccinationDao(db);
         for (const row of data || []) {
           await dao.upsertFromRemote(row);
+        }
+        // Always read from local SQLite to include locally created records pending sync!
+        const locals = await dao.getByPetId(petId);
+        if (locals.length > 0) {
+          return locals.map((l) => this.mapRow(l));
         }
       } catch {}
 
@@ -118,6 +123,19 @@ export class VaccinationRepositorySupabase implements VaccinationRepository {
       if (error) {
         throw new Error(mapSupabaseError(error));
       }
+
+      // Asynchronously mirror into local SQLite and load combined records
+      try {
+        const db = await getDatabase();
+        const dao = new VaccinationDao(db);
+        for (const row of data || []) {
+          await dao.upsertFromRemote(row);
+        }
+        const locals = await dao.getUpcomingAlerts(petIds);
+        if (locals.length > 0) {
+          return locals.map((l) => this.mapRow(l));
+        }
+      } catch {}
 
       return (data || []).map((row) => this.mapRow(row));
     } catch {
