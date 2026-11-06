@@ -94,6 +94,7 @@ export default function AdminScreen() {
   const [formSourceUrl, setFormSourceUrl] = useState('');
   const [formStatus, setFormStatus] = useState<ArticleStatus>('published');
   const [isSavingArticle, setIsSavingArticle] = useState(false);
+  const [coverImageError, setCoverImageError] = useState(false);
 
   // Category Modal State
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
@@ -163,6 +164,7 @@ export default function AdminScreen() {
     setFormCategoryId(categories[0]?.id || '');
     setFormSpecies('all');
     setFormCoverUrl('');
+    setCoverImageError(false);
     setFormExcerpt('');
     setFormContent('');
     setFormSourceName('');
@@ -177,6 +179,7 @@ export default function AdminScreen() {
     setFormCategoryId(art.categoryId || '');
     setFormSpecies(art.targetSpecies);
     setFormCoverUrl(art.coverImageUrl || '');
+    setCoverImageError(false);
     setFormExcerpt(art.excerpt);
     setFormContent(art.content);
     setFormSourceName(art.sourceName || '');
@@ -1448,17 +1451,25 @@ export default function AdminScreen() {
                 </Text>
                 <TextInput
                   value={formCoverUrl}
-                  onChangeText={setFormCoverUrl}
+                  onChangeText={(val) => {
+                    setFormCoverUrl(val);
+                    setCoverImageError(false);
+                  }}
                   placeholder="https://images.unsplash.com/..."
                   placeholderTextColor={colors.textTertiary}
                   style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 />
-                {Boolean(formCoverUrl) && (
-                  <Image
-                    source={{ uri: formCoverUrl }}
-                    style={{ width: '100%', height: 90, borderRadius: 6, marginTop: 6 }}
-                    resizeMode="cover"
-                  />
+                {Boolean(formCoverUrl.trim()) &&
+                  (formCoverUrl.trim().startsWith('http://') || formCoverUrl.trim().startsWith('https://')) &&
+                  !coverImageError && (
+                    <View style={{ height: 85, borderRadius: 6, marginTop: 6, overflow: 'hidden', backgroundColor: colors.surfaceElevated }}>
+                      <Image
+                        source={{ uri: formCoverUrl.trim() }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="cover"
+                        onError={() => setCoverImageError(true)}
+                      />
+                    </View>
                 )}
               </View>
 

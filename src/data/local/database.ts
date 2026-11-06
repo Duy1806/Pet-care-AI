@@ -209,9 +209,13 @@ const MIGRATIONS: Record<number, string> = {
       source_name TEXT,
       status TEXT NOT NULL DEFAULT 'published',
       views_count INTEGER NOT NULL DEFAULT 0,
-      published_at TEXT NOT NULL,
+      published_at TEXT,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      deleted_at TEXT,
+      sync_status TEXT NOT NULL DEFAULT 'synced',
+      last_synced_at TEXT,
+      local_updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE INDEX IF NOT EXISTS idx_local_articles_species ON articles(target_species);
@@ -244,6 +248,28 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
       }
     }
     await db.execAsync(`PRAGMA user_version = ${CURRENT_DB_VERSION};`);
+  }
+
+  // Ensure missing columns in existing local SQLite tables
+  try {
+    const tableInfo = await db.getAllAsync<{ name: string }>('PRAGMA table_info(articles);');
+    const existingCols = new Set(tableInfo.map((c) => c.name));
+
+    const requiredCols: Array<{ name: string; type: string }> = [
+      { name: 'deleted_at', type: 'TEXT' },
+      { name: 'sync_status', type: "TEXT NOT NULL DEFAULT 'synced'" },
+      { name: 'last_synced_at', type: 'TEXT' },
+      { name: 'local_updated_at', type: 'TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP' },
+      { name: 'category_name', type: 'TEXT' },
+    ];
+
+    for (const col of requiredCols) {
+      if (!existingCols.has(col.name)) {
+        await db.execAsync(`ALTER TABLE articles ADD COLUMN ${col.name} ${col.type};`);
+      }
+    }
+  } catch (e) {
+    console.warn('[Database] articles column migration warning:', e);
   }
 
   dbInstance = db;

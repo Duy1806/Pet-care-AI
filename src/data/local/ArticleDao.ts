@@ -60,13 +60,35 @@ export class ArticleDao {
         deleted_at TEXT,
         sync_status TEXT NOT NULL DEFAULT 'synced',
         last_synced_at TEXT,
-        local_updated_at TEXT NOT NULL
+        local_updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE INDEX IF NOT EXISTS idx_local_articles_species ON articles(target_species);
       CREATE INDEX IF NOT EXISTS idx_local_articles_cat ON articles(category_id);
       CREATE INDEX IF NOT EXISTS idx_local_articles_status ON articles(status);
     `);
+
+    // Dynamically ensure missing columns on existing SQLite installs
+    try {
+      const tableInfo = await this.db.getAllAsync<{ name: string }>('PRAGMA table_info(articles);');
+      const existingCols = new Set(tableInfo.map((c) => c.name));
+
+      const requiredCols: Array<{ name: string; type: string }> = [
+        { name: 'deleted_at', type: 'TEXT' },
+        { name: 'sync_status', type: "TEXT NOT NULL DEFAULT 'synced'" },
+        { name: 'last_synced_at', type: 'TEXT' },
+        { name: 'local_updated_at', type: 'TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP' },
+        { name: 'category_name', type: 'TEXT' },
+      ];
+
+      for (const col of requiredCols) {
+        if (!existingCols.has(col.name)) {
+          await this.db.execAsync(`ALTER TABLE articles ADD COLUMN ${col.name} ${col.type};`);
+        }
+      }
+    } catch (e) {
+      console.warn('[ArticleDao] Column migration error:', e);
+    }
   }
 
   async saveCategories(categories: BlogCategory[]): Promise<void> {
