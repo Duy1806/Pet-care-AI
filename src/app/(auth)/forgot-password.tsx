@@ -47,7 +47,7 @@ import {
   type ResetPasswordData,
 } from '@/presentation/validation';
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 3;
 
 function parseUrlParams(rawUrl: string): Record<string, string> {
   const params: Record<string, string> = {};
@@ -78,15 +78,13 @@ export default function ForgotPasswordScreen() {
     error,
     clearError,
     sendResetCode,
-    verifyOtp,
     resetPassword,
     resetForgotPasswordFlow,
   } = useAuthStore();
 
-  // Local state for countdown & OTP input
+  // Local state for countdown & resend
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
 
   // Password visibility for step 3
   const [showPassword, setShowPassword] = useState(false);
@@ -173,9 +171,7 @@ export default function ForgotPasswordScreen() {
       ? 1
       : forgotPasswordStep === 'otp'
         ? 2
-        : forgotPasswordStep === 'new-password'
-          ? 3
-          : 4;
+        : 3;
 
   const handleBack = useCallback(() => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -186,7 +182,7 @@ export default function ForgotPasswordScreen() {
     } else if (forgotPasswordStep === 'otp') {
       useAuthStore.setState({ forgotPasswordStep: 'email' });
     } else if (forgotPasswordStep === 'new-password') {
-      useAuthStore.setState({ forgotPasswordStep: 'otp' });
+      useAuthStore.setState({ forgotPasswordStep: 'email' });
     } else {
       resetForgotPasswordFlow();
       router.replace('/(auth)/login' as any);
@@ -206,15 +202,27 @@ export default function ForgotPasswordScreen() {
     [sendResetCode, clearError],
   );
 
-  // Step 2: Verify OTP
-  const handleVerifyOtp = useCallback(async () => {
-    if (!otpCode.trim()) return;
-    clearError();
-    const ok = await verifyOtp(otpCode.trim());
-    if (ok) {
-      useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+  // Step 2: Open Email App
+  const handleOpenMailApp = useCallback(async () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      if (Platform.OS === 'ios') {
+        const canOpen = await Linking.canOpenURL('message://');
+        if (canOpen) {
+          await Linking.openURL('message://');
+          return;
+        }
+      }
+      const canMailto = await Linking.canOpenURL('mailto:');
+      if (canMailto) {
+        await Linking.openURL('mailto:');
+        return;
+      }
+      await Linking.openURL('https://mail.google.com');
+    } catch {
+      await Linking.openURL('https://mail.google.com').catch(() => {});
     }
-  }, [otpCode, verifyOtp, clearError]);
+  }, []);
 
   // Step 2: Resend email
   const handleResendEmail = useCallback(async () => {
@@ -411,7 +419,7 @@ export default function ForgotPasswordScreen() {
                 <Text
                   style={[
                     typo.headlineMedium,
-                    { color: colors.text, marginBottom: spacing.xs, textAlign: 'center' },
+                    { color: colors.text, marginBottom: spacing.xs, textAlign: 'center', fontWeight: '800' },
                   ]}
                 >
                   Kiểm tra hòm thư của bạn
@@ -419,14 +427,13 @@ export default function ForgotPasswordScreen() {
                 <Text
                   style={[
                     typo.bodyMedium,
-                    { color: colors.textSecondary, marginBottom: spacing.lg, textAlign: 'center' },
+                    { color: colors.textSecondary, marginBottom: spacing.lg, textAlign: 'center', lineHeight: 22 },
                   ]}
                 >
-                  Chúng tôi đã gửi email xác nhận kèm đường dẫn đặt lại mật khẩu tới{' '}
-                  <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>
+                  Chúng tôi đã gửi email xác nhận kèm đường dẫn đặt lại mật khẩu tới:{'\n'}
+                  <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold', fontWeight: '700' }}>
                     {forgotPasswordEmail}
                   </Text>
-                  .
                 </Text>
 
                 {/* Instructions Box */}
@@ -462,7 +469,7 @@ export default function ForgotPasswordScreen() {
                       style={{ marginRight: spacing.xs, marginTop: 2 }}
                     />
                     <Text style={[typo.bodySmall, { color: colors.text, flex: 1 }]}>
-                      Bấm vào nút <Text style={{ fontWeight: '700' }}>Reset Password</Text> (hoặc đường link) trong thư.
+                      Bấm vào nút <Text style={{ fontWeight: '700' }}>Reset Password</Text> trong thư để xác nhận.
                     </Text>
                   </View>
 
@@ -474,49 +481,29 @@ export default function ForgotPasswordScreen() {
                       style={{ marginRight: spacing.xs, marginTop: 2 }}
                     />
                     <Text style={[typo.bodySmall, { color: colors.text, flex: 1 }]}>
-                      Điện thoại sẽ tự động mở lại Expo Go và hiển thị màn hình tạo mật khẩu mới.
+                      Ứng dụng sẽ tự động chuyển sang màn hình tạo mật khẩu mới.
                     </Text>
                   </View>
                 </View>
 
-                {/* Alternative: Enter OTP / Token */}
-                <View style={{ width: '100%', marginVertical: spacing.sm }}>
-                  <AppTextField
-                    label="Hoặc nhập mã số (OTP) từ email"
-                    value={otpCode}
-                    onChangeText={setOtpCode}
-                    leftIcon="numeric"
-                    keyboardType="number-pad"
-                    placeholder="Nhập mã xác nhận..."
-                  />
-                  {otpCode.trim().length >= 6 ? (
-                    <PrimaryButton
-                      title="Xác nhận mã OTP"
-                      onPress={handleVerifyOtp}
-                      loading={isLoading}
-                      style={{ marginTop: spacing.xs }}
-                    />
-                  ) : null}
-                </View>
-
-                {/* Direct shortcut button */}
+                {/* Open Email Client Button */}
                 <PrimaryButton
-                  title="🔑 Đã bấm link trong email? Đặt mật khẩu mới"
-                  onPress={() => useAuthStore.setState({ forgotPasswordStep: 'new-password' })}
-                  style={{ width: '100%', marginTop: spacing.xs }}
+                  title="Mở ứng dụng Email"
+                  onPress={handleOpenMailApp}
+                  style={{ width: '100%', marginBottom: spacing.sm }}
                 />
 
                 {/* Resend Countdown */}
-                <View style={{ marginVertical: spacing.md }}>
+                <View style={{ marginVertical: spacing.md, alignItems: 'center' }}>
                   {canResend ? (
                     <Pressable onPress={handleResendEmail} hitSlop={8}>
                       <Text
                         style={[
                           typo.labelLarge,
-                          { color: colors.primary, textDecorationLine: 'underline' },
+                          { color: colors.primary, textDecorationLine: 'underline', fontWeight: '700' },
                         ]}
                       >
-                        Chưa nhận được? Gửi lại email
+                        Chưa nhận được thư? Gửi lại email
                       </Text>
                     </Pressable>
                   ) : (
@@ -528,6 +515,20 @@ export default function ForgotPasswordScreen() {
                     </Text>
                   )}
                 </View>
+
+                {/* Re-enter email option */}
+                <Pressable
+                  onPress={() => useAuthStore.setState({ forgotPasswordStep: 'email' })}
+                  hitSlop={8}
+                  style={{ marginTop: spacing.xs, paddingVertical: 6 }}
+                >
+                  <Text style={[typo.bodySmall, { color: colors.textTertiary }]}>
+                    Nhập sai email?{' '}
+                    <Text style={{ color: colors.primary, fontWeight: '600' }}>
+                      Đổi email khác
+                    </Text>
+                  </Text>
+                </Pressable>
               </Animated.View>
             )}
 

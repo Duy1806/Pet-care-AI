@@ -77,6 +77,10 @@ function RootNavigator() {
         urlStr.includes('recovery') ||
         urlStr.includes('forgot-password');
 
+      if (isRecovery) {
+        useAuthStore.setState({ forgotPasswordStep: 'new-password' });
+      }
+
       if (parsed.access_token && parsed.refresh_token) {
         try {
           await supabase.auth.setSession({
@@ -84,7 +88,6 @@ function RootNavigator() {
             refresh_token: parsed.refresh_token,
           });
           if (isRecovery) {
-            useAuthStore.setState({ forgotPasswordStep: 'new-password' });
             router.replace('/(auth)/forgot-password?step=new-password' as any);
           } else {
             // OAuth or Magic Link sign in -> Initialize session
@@ -98,7 +101,6 @@ function RootNavigator() {
         try {
           await supabase.auth.exchangeCodeForSession(parsed.code);
           if (isRecovery) {
-            useAuthStore.setState({ forgotPasswordStep: 'new-password' });
             router.replace('/(auth)/forgot-password?step=new-password' as any);
           } else {
             // OAuth sign in -> Initialize session
@@ -111,7 +113,6 @@ function RootNavigator() {
       }
 
       if (isRecovery) {
-        useAuthStore.setState({ forgotPasswordStep: 'new-password' });
         router.replace('/(auth)/forgot-password?step=new-password' as any);
       }
     };
@@ -144,12 +145,13 @@ function RootNavigator() {
     const segs = segments as unknown as string[];
     const inAuthGroup = segs[0] === '(auth)';
     const isForgotPassword = segs.includes('forgot-password');
+    const isPasswordRecovery = useAuthStore.getState().forgotPasswordStep === 'new-password';
     const isAdminRoute = segs[0] === 'admin';
     const isAppRoute = segs[0] === '(app)';
     const isAuthenticated = Boolean(user && session);
 
-    // CRITICAL: If the user is on the forgot-password screen, NEVER redirect away!
-    if (isForgotPassword) {
+    // CRITICAL: If the user is on the forgot-password screen or resetting password, NEVER redirect away!
+    if (isForgotPassword || isPasswordRecovery) {
       return;
     }
 
