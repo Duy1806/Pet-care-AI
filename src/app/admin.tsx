@@ -13,6 +13,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -27,11 +28,19 @@ import { router } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as WebBrowser from 'expo-web-browser';
 
 import { useAppTheme } from '@/presentation/theme';
 import { useAuthStore } from '@/presentation/stores/useAuthStore';
 import { useArticleStore } from '@/presentation/stores/useArticleStore';
+import { useAffiliateProductStore } from '@/presentation/stores/useAffiliateProductStore';
 import type { Article, ArticleStatus, TargetSpecies } from '@/domain/entities/Article';
+import type {
+  AffiliateProduct,
+  ProductCategory,
+  ProductPetType,
+  ProductStatus,
+} from '@/domain/entities/AffiliateProduct';
 import {
   adminRepo,
   type AdminPetItem,
@@ -40,7 +49,7 @@ import {
   type AdminVaccinationItem,
 } from '@/data/repositories/AdminRepository';
 
-type AdminTab = 'overview' | 'articles' | 'users' | 'pets' | 'vaccinations';
+type AdminTab = 'overview' | 'articles' | 'products' | 'users' | 'pets' | 'vaccinations';
 
 export default function AdminScreen() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
@@ -78,6 +87,22 @@ export default function AdminScreen() {
     createCategory,
   } = useArticleStore();
 
+  // Affiliate Product store integration
+  const {
+    adminProducts,
+    categories: productCategories,
+    loadAdminProducts,
+    loadCategories: loadProductCategories,
+    createProduct,
+    updateProduct,
+    deleteProduct,
+    toggleProductStatus,
+    createCategory: createProductCategory,
+    linkProductsToArticle,
+    getProductArticleIds,
+    getProductsByArticleId,
+  } = useAffiliateProductStore();
+
   const [articleStatusFilter, setArticleStatusFilter] = useState<'all' | 'published' | 'draft' | 'hidden'>('all');
   const [searchArticleText, setSearchArticleText] = useState('');
 
@@ -93,13 +118,36 @@ export default function AdminScreen() {
   const [formSourceName, setFormSourceName] = useState('');
   const [formSourceUrl, setFormSourceUrl] = useState('');
   const [formStatus, setFormStatus] = useState<ArticleStatus>('published');
+  const [formArticleProductIds, setFormArticleProductIds] = useState<string[]>([]);
   const [isSavingArticle, setIsSavingArticle] = useState(false);
   const [coverImageError, setCoverImageError] = useState(false);
 
-  // Category Modal State
+  // Product Management States
+  const [productStatusFilter, setProductStatusFilter] = useState<'all' | 'active' | 'draft' | 'hidden'>('all');
+  const [searchProductText, setSearchProductText] = useState('');
+  const [isProductModalVisible, setIsProductModalVisible] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<AffiliateProduct | null>(null);
+  const [formProdName, setFormProdName] = useState('');
+  const [formProdPrice, setFormProdPrice] = useState('');
+  const [formProdMerchant, setFormProdMerchant] = useState('Shopee');
+  const [formProdAffiliateUrl, setFormProdAffiliateUrl] = useState('');
+  const [formProdImageUrl, setFormProdImageUrl] = useState('');
+  const [formProdCategoryId, setFormProdCategoryId] = useState('');
+  const [formProdPetType, setFormProdPetType] = useState<ProductPetType>('all');
+  const [formProdDescription, setFormProdDescription] = useState('');
+  const [formProdStatus, setFormProdStatus] = useState<ProductStatus>('active');
+  const [formProdLinkedArticleIds, setFormProdLinkedArticleIds] = useState<string[]>([]);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+  const [prodImageError, setProdImageError] = useState(false);
+
+  // Category Modal State (Article & Product Categories)
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isSavingCategory, setIsSavingCategory] = useState(false);
+
+  const [isProdCategoryModalVisible, setIsProdCategoryModalVisible] = useState(false);
+  const [newProdCategoryName, setNewProdCategoryName] = useState('');
+  const [isSavingProdCategory, setIsSavingProdCategory] = useState(false);
 
   // Search & filter states
   const [searchUserText, setSearchUserText] = useState('');
@@ -118,6 +166,8 @@ export default function AdminScreen() {
         adminRepo.getAllVaccinations(),
         loadAdminArticles(),
         loadCategories(),
+        loadAdminProducts(),
+        loadProductCategories(),
       ]);
 
       setStats(newStats);
@@ -130,7 +180,7 @@ export default function AdminScreen() {
       setIsLoadingData(false);
       setIsRefreshing(false);
     }
-  }, [loadAdminArticles, loadCategories]);
+  }, [loadAdminArticles, loadCategories, loadAdminProducts, loadProductCategories]);
 
   useEffect(() => {
     void loadAdminData();
@@ -170,10 +220,11 @@ export default function AdminScreen() {
     setFormSourceName('');
     setFormSourceUrl('');
     setFormStatus('published');
+    setFormArticleProductIds([]);
     setIsArticleModalVisible(true);
   };
 
-  const openEditArticleModal = (art: Article) => {
+  const openEditArticleModal = async (art: Article) => {
     setEditingArticle(art);
     setFormTitle(art.title);
     setFormCategoryId(art.categoryId || '');
@@ -186,6 +237,12 @@ export default function AdminScreen() {
     setFormSourceUrl(art.sourceUrl || '');
     setFormStatus(art.status);
     setIsArticleModalVisible(true);
+    try {
+      const prods = await getProductsByArticleId(art.id);
+      setFormArticleProductIds(prods.map((p) => p.id));
+    } catch {
+      setFormArticleProductIds([]);
+    }
   };
 
   const handleSaveArticle = async () => {
@@ -204,8 +261,9 @@ export default function AdminScreen() {
 
     setIsSavingArticle(true);
     try {
+      let savedArticleId: string;
       if (editingArticle) {
-        await updateArticle(editingArticle.id, {
+        const updated = await updateArticle(editingArticle.id, {
           title: formTitle.trim(),
           categoryId: formCategoryId || null,
           targetSpecies: formSpecies,
@@ -216,9 +274,10 @@ export default function AdminScreen() {
           sourceUrl: formSourceUrl.trim() || null,
           status: formStatus,
         });
+        savedArticleId = updated.id;
         Alert.alert('Thành công', 'Đã cập nhật bài viết thành công!');
       } else {
-        await createArticle({
+        const created = await createArticle({
           title: formTitle.trim(),
           categoryId: formCategoryId || null,
           targetSpecies: formSpecies,
@@ -229,14 +288,182 @@ export default function AdminScreen() {
           sourceUrl: formSourceUrl.trim() || null,
           status: formStatus,
         });
+        savedArticleId = created.id;
         Alert.alert('Thành công', 'Đã thêm bài viết mới vào hệ thống!');
       }
+
+      // Link products to this article
+      await linkProductsToArticle(savedArticleId, formArticleProductIds);
+
       setIsArticleModalVisible(false);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err: any) {
       Alert.alert('Lỗi lưu bài viết', err?.message || 'Không thể lưu bài viết. Vui lòng kiểm tra quyền Admin.');
     } finally {
       setIsSavingArticle(false);
+    }
+  };
+
+  // Filtered admin affiliate products
+  const filteredAdminProducts = useMemo(() => {
+    return adminProducts.filter((p) => {
+      if (productStatusFilter !== 'all' && p.status !== productStatusFilter) return false;
+      if (searchProductText.trim()) {
+        const q = searchProductText.toLowerCase();
+        return (
+          p.name.toLowerCase().includes(q) ||
+          (p.merchantName && p.merchantName.toLowerCase().includes(q)) ||
+          (p.categoryName && p.categoryName.toLowerCase().includes(q))
+        );
+      }
+      return true;
+    });
+  }, [adminProducts, productStatusFilter, searchProductText]);
+
+  const openCreateProductModal = () => {
+    setEditingProduct(null);
+    setFormProdName('');
+    setFormProdPrice('');
+    setFormProdMerchant('Shopee');
+    setFormProdAffiliateUrl('');
+    setFormProdImageUrl('');
+    setFormProdCategoryId(productCategories[0]?.id || '');
+    setFormProdPetType('all');
+    setFormProdDescription('');
+    setFormProdStatus('active');
+    setFormProdLinkedArticleIds([]);
+    setProdImageError(false);
+    setIsProductModalVisible(true);
+  };
+
+  const openEditProductModal = async (prod: AffiliateProduct) => {
+    setEditingProduct(prod);
+    setFormProdName(prod.name);
+    setFormProdPrice(prod.price ? String(prod.price) : '');
+    setFormProdMerchant(prod.merchantName || 'Shopee');
+    setFormProdAffiliateUrl(prod.affiliateUrl || '');
+    setFormProdImageUrl(prod.imageUrl || '');
+    setFormProdCategoryId(prod.categoryId || '');
+    setFormProdPetType(prod.petType || 'all');
+    setFormProdDescription(prod.description || '');
+    setFormProdStatus(prod.status || 'active');
+    setProdImageError(false);
+    setIsProductModalVisible(true);
+    try {
+      const artIds = await getProductArticleIds(prod.id);
+      setFormProdLinkedArticleIds(artIds);
+    } catch {
+      setFormProdLinkedArticleIds([]);
+    }
+  };
+
+  const handleSaveProduct = async () => {
+    if (!formProdName.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập tên sản phẩm.');
+      return;
+    }
+    if (!formProdAffiliateUrl.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập link tiếp thị liên kết (Affiliate URL).');
+      return;
+    }
+
+    const priceNum = parseInt(formProdPrice.replace(/\D/g, ''), 10) || 0;
+
+    setIsSavingProduct(true);
+    try {
+      let savedId: string;
+      if (editingProduct) {
+        const updated = await updateProduct(editingProduct.id, {
+          name: formProdName.trim(),
+          description: formProdDescription.trim(),
+          imageUrl: formProdImageUrl.trim() || undefined,
+          price: priceNum,
+          categoryId: formProdCategoryId || undefined,
+          petType: formProdPetType,
+          merchantName: formProdMerchant.trim() || 'Shopee',
+          affiliateUrl: formProdAffiliateUrl.trim(),
+          status: formProdStatus,
+        });
+        savedId = updated.id;
+        Alert.alert('Thành công', 'Đã cập nhật sản phẩm thành công!');
+      } else {
+        const created = await createProduct({
+          name: formProdName.trim(),
+          description: formProdDescription.trim(),
+          imageUrl: formProdImageUrl.trim() || undefined,
+          price: priceNum,
+          categoryId: formProdCategoryId || undefined,
+          petType: formProdPetType,
+          merchantName: formProdMerchant.trim() || 'Shopee',
+          affiliateUrl: formProdAffiliateUrl.trim(),
+          status: formProdStatus,
+        });
+        savedId = created.id;
+        Alert.alert('Thành công', 'Đã thêm sản phẩm mới vào PetCare Shop!');
+      }
+
+      // Link articles to this product
+      for (const artId of formProdLinkedArticleIds) {
+        await linkProductsToArticle(artId, [savedId]);
+      }
+
+      setIsProductModalVisible(false);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err: any) {
+      Alert.alert('Lỗi lưu sản phẩm', err?.message || 'Không thể lưu sản phẩm.');
+    } finally {
+      setIsSavingProduct(false);
+    }
+  };
+
+  const handleDeleteProduct = (prod: AffiliateProduct) => {
+    Alert.alert(
+      'Xác nhận xóa sản phẩm',
+      `Bạn có chắc chắn muốn xóa sản phẩm:\n"${prod.name}"?`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa sản phẩm',
+          style: 'destructive',
+          onPress: async () => {
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            try {
+              await deleteProduct(prod.id);
+              Alert.alert('Đã xóa', 'Sản phẩm đã được gỡ bỏ.');
+            } catch (err: any) {
+              Alert.alert('Không thể xóa', err?.message || 'Có lỗi xảy ra.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleToggleProductStatus = async (prod: AffiliateProduct) => {
+    const nextStatus: ProductStatus = prod.status === 'active' ? 'hidden' : 'active';
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await toggleProductStatus(prod.id, nextStatus);
+    } catch (err: any) {
+      Alert.alert('Lỗi', err?.message || 'Không thể đổi trạng thái sản phẩm.');
+    }
+  };
+
+  const handleSaveProdCategory = async () => {
+    if (!newProdCategoryName.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập tên danh mục sản phẩm.');
+      return;
+    }
+    setIsSavingProdCategory(true);
+    try {
+      await createProductCategory(newProdCategoryName.trim());
+      setNewProdCategoryName('');
+      setIsProdCategoryModalVisible(false);
+      Alert.alert('Thành công', 'Đã thêm danh mục sản phẩm mới!');
+    } catch (err: any) {
+      Alert.alert('Lỗi', err?.message || 'Không thể tạo danh mục sản phẩm mới.');
+    } finally {
+      setIsSavingProdCategory(false);
     }
   };
 
@@ -423,12 +650,13 @@ export default function AdminScreen() {
         </View>
       </View>
 
-      {/* 5 Tabs Selector */}
+      {/* 6 Tabs Selector */}
       <View style={[styles.tabBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
           {[
             { key: 'overview', label: 'Tổng quan', icon: 'view-dashboard-outline' },
             { key: 'articles', label: `Bài viết (${adminArticles.length})`, icon: 'book-open-page-variant-outline' },
+            { key: 'products', label: `Sản phẩm (${adminProducts.length})`, icon: 'shopping-outline' },
             { key: 'users', label: `Người dùng (${usersList.length})`, icon: 'account-group-outline' },
             { key: 'pets', label: `Thú cưng (${petsList.length})`, icon: 'paw-outline' },
             { key: 'vaccinations', label: `Sổ tiêm (${vaccinationsList.length})`, icon: 'needle' },
@@ -901,6 +1129,303 @@ export default function AdminScreen() {
 
                         <Pressable
                           onPress={() => handleDeleteArticle(art)}
+                          style={{
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            backgroundColor: '#FEE2E2',
+                            borderRadius: radius.md,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <MaterialCommunityIcons name="trash-can-outline" size={16} color="#DC2626" />
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+          )}
+
+          {/* TAB: AFFILIATE PRODUCT MANAGEMENT */}
+          {activeTab === 'products' && (
+            <View style={{ gap: spacing.md }}>
+              {/* Header Action Buttons */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    openCreateProductModal();
+                  }}
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.primary,
+                    paddingVertical: 12,
+                    borderRadius: radius.md,
+                    gap: 6,
+                  }}
+                >
+                  <MaterialCommunityIcons name="tag-plus-outline" size={18} color="#FFF" />
+                  <Text style={[typo.labelLarge, { color: '#FFF', fontWeight: '700' }]}>
+                    Thêm sản phẩm mới
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setIsProdCategoryModalVisible(true);
+                  }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    borderRadius: radius.md,
+                    gap: 6,
+                  }}
+                >
+                  <MaterialCommunityIcons name="shape-outline" size={18} color={colors.text} />
+                  <Text style={[typo.labelMedium, { color: colors.text, fontWeight: '600' }]}>
+                    + Danh mục ({productCategories.length})
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Search Bar */}
+              <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
+                <TextInput
+                  value={searchProductText}
+                  onChangeText={setSearchProductText}
+                  placeholder="Tìm kiếm sản phẩm, nhà bán Shopee/Lazada..."
+                  placeholderTextColor={colors.textTertiary}
+                  style={[styles.searchInput, typo.bodySmall, { color: colors.text }]}
+                />
+                {searchProductText.length > 0 && (
+                  <Pressable onPress={() => setSearchProductText('')}>
+                    <MaterialCommunityIcons name="close-circle" size={18} color={colors.textTertiary} />
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Status Filter Chips */}
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                {[
+                  { key: 'all', label: `Tất cả (${adminProducts.length})` },
+                  { key: 'active', label: `Đang hiển thị (${adminProducts.filter((p) => p.status === 'active').length})` },
+                  { key: 'draft', label: `Bản nháp (${adminProducts.filter((p) => p.status === 'draft').length})` },
+                  { key: 'hidden', label: `Đã ẩn (${adminProducts.filter((p) => p.status === 'hidden').length})` },
+                ].map((item) => {
+                  const isSel = productStatusFilter === item.key;
+                  return (
+                    <Pressable
+                      key={item.key}
+                      onPress={() => {
+                        void Haptics.selectionAsync();
+                        setProductStatusFilter(item.key as any);
+                      }}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: radius.md,
+                        backgroundColor: isSel ? colors.primary : colors.surface,
+                        borderColor: isSel ? colors.primary : colors.border,
+                        borderWidth: 1,
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.textSecondary }}>
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Product List */}
+              {filteredAdminProducts.length === 0 ? (
+                <View style={[styles.emptyContainer, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.lg, padding: 24 }]}>
+                  <MaterialCommunityIcons name="shopping-outline" size={48} color={colors.textTertiary} />
+                  <Text style={[typo.titleSmall, { color: colors.text, marginTop: 8, fontWeight: '700' }]}>
+                    Chưa có sản phẩm nào
+                  </Text>
+                  <Text style={[typo.caption, { color: colors.textSecondary, marginTop: 4, textAlign: 'center' }]}>
+                    Bấm "Thêm sản phẩm mới" để tạo liên kết giới thiệu Shopee, Lazada, Tiki...
+                  </Text>
+                </View>
+              ) : (
+                filteredAdminProducts.map((prod) => {
+                  const isActive = prod.status === 'active';
+                  const isDraft = prod.status === 'draft';
+                  const statusBg = isActive ? '#DCFCE7' : isDraft ? '#F1F5F9' : '#FEF3C7';
+                  const statusColor = isActive ? '#15803D' : isDraft ? '#64748B' : '#B45309';
+                  const statusLabel = isActive ? 'Đang hiển thị' : isDraft ? 'Bản nháp' : 'Đã ẩn';
+
+                  const petLabel = prod.petType === 'all' ? 'Chó & Mèo' : prod.petType === 'dog' ? 'Chó' : 'Mèo';
+
+                  return (
+                    <View
+                      key={prod.id}
+                      style={{
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        borderWidth: 1,
+                        borderRadius: radius.lg,
+                        padding: 14,
+                        gap: 10,
+                      }}
+                    >
+                      {/* Top Row: Badges */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8, flexWrap: 'wrap' }}>
+                          <View style={{ backgroundColor: statusBg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: statusColor }}>
+                              {statusLabel}
+                            </Text>
+                          </View>
+
+                          <View style={{ backgroundColor: '#E0F2FE', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#0284C7' }}>
+                              {petLabel}
+                            </Text>
+                          </View>
+
+                          {Boolean(prod.merchantName) && (
+                            <View style={{ backgroundColor: '#FEE2E2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: '#DC2626' }}>
+                                {prod.merchantName}
+                              </Text>
+                            </View>
+                          )}
+
+                          {Boolean(prod.categoryName) && (
+                            <Text style={[typo.caption, { color: colors.textSecondary, fontWeight: '600' }]} numberOfLines={1}>
+                              {prod.categoryName}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Content Row: Thumbnail & Title/Price/Description */}
+                      <View style={{ flexDirection: 'row', gap: 10 }}>
+                        {Boolean(prod.imageUrl) ? (
+                          <Image
+                            source={{ uri: prod.imageUrl! }}
+                            style={{ width: 72, height: 72, borderRadius: 8, backgroundColor: '#E2E8F0' }}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View
+                            style={{
+                              width: 72,
+                              height: 72,
+                              borderRadius: 8,
+                              backgroundColor: colors.surfaceElevated,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <MaterialCommunityIcons name="shopping" size={28} color={colors.textTertiary} />
+                          </View>
+                        )}
+                        <View style={{ flex: 1, justifyContent: 'center' }}>
+                          <Text style={[typo.titleSmall, { color: colors.text, fontWeight: '700' }]} numberOfLines={2}>
+                            {prod.name}
+                          </Text>
+                          <Text style={{ color: '#E11D48', fontWeight: '800', fontSize: 14, marginTop: 2 }}>
+                            {prod.price > 0 ? `${prod.price.toLocaleString('vi-VN')} đ` : 'Chưa nhập giá'}
+                          </Text>
+                          {Boolean(prod.description) && (
+                            <Text style={[typo.bodySmall, { color: colors.textSecondary, marginTop: 2 }]} numberOfLines={1}>
+                              {prod.description}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Affiliate Link Preview */}
+                      <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
+                        <Pressable
+                          onPress={async () => {
+                            if (prod.affiliateUrl) {
+                              try {
+                                await WebBrowser.openBrowserAsync(prod.affiliateUrl);
+                              } catch {
+                                await Linking.openURL(prod.affiliateUrl).catch(() => {
+                                  Alert.alert('Lỗi', 'Không thể mở liên kết');
+                                });
+                              }
+                            }
+                          }}
+                          style={{ flexDirection: 'row', alignItems: 'center' }}
+                        >
+                          <MaterialCommunityIcons name="link-variant" size={14} color={colors.primary} />
+                          <Text style={{ fontSize: 11, color: colors.primary, marginLeft: 4, flex: 1 }} numberOfLines={1}>
+                            {prod.affiliateUrl}
+                          </Text>
+                          <MaterialCommunityIcons name="open-in-new" size={12} color={colors.primary} />
+                        </Pressable>
+                      </View>
+
+                      {/* Actions: Sửa, Ẩn/Hiện, Xóa */}
+                      <View style={{ flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
+                        <Pressable
+                          onPress={() => openEditProductModal(prod)}
+                          style={{
+                            flex: 1,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: colors.surfaceElevated,
+                            paddingVertical: 8,
+                            borderRadius: radius.md,
+                            gap: 4,
+                          }}
+                        >
+                          <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.primary} />
+                          <Text style={[typo.labelSmall, { color: colors.primary, fontWeight: '700' }]}>
+                            Sửa
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => handleToggleProductStatus(prod)}
+                          style={{
+                            flex: 1,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: colors.surfaceElevated,
+                            paddingVertical: 8,
+                            borderRadius: radius.md,
+                            gap: 4,
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name={isActive ? 'eye-off-outline' : 'eye-outline'}
+                            size={15}
+                            color={isActive ? '#D97706' : '#16A34A'}
+                          />
+                          <Text
+                            style={[
+                              typo.labelSmall,
+                              { color: isActive ? '#D97706' : '#16A34A', fontWeight: '700' },
+                            ]}
+                          >
+                            {isActive ? 'Ẩn' : 'Hiển thị'}
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => handleDeleteProduct(prod)}
                           style={{
                             paddingHorizontal: 12,
                             paddingVertical: 8,
@@ -1571,12 +2096,66 @@ export default function AdminScreen() {
                   })}
                 </View>
               </View>
+
+              {/* Affiliate Products Linking Selector */}
+              {adminProducts.length > 0 && (
+                <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 8, gap: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <MaterialCommunityIcons name="shopping-outline" size={15} color={colors.primary} />
+                      <Text style={[typo.labelSmall, { color: colors.text, fontWeight: '700' }]}>
+                        Gắn sản phẩm mua sắm liên quan ({formArticleProductIds.length})
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontSize: 10, color: colors.textSecondary }}>
+                    Chọn các sản phẩm sẽ hiển thị ở cuối bài viết để người đọc tham khảo & mua sắm
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: 4 }}>
+                    {adminProducts.map((p) => {
+                      const isLinked = formArticleProductIds.includes(p.id);
+                      return (
+                        <Pressable
+                          key={p.id}
+                          onPress={() => {
+                            if (isLinked) {
+                              setFormArticleProductIds((prev) => prev.filter((id) => id !== p.id));
+                            } else {
+                              setFormArticleProductIds((prev) => [...prev, p.id]);
+                            }
+                          }}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            paddingHorizontal: 8,
+                            paddingVertical: 5,
+                            borderRadius: radius.sm,
+                            backgroundColor: isLinked ? colors.primaryContainer || '#DBEAFE' : colors.surfaceElevated,
+                            borderColor: isLinked ? colors.primary : colors.border,
+                            borderWidth: 1,
+                            gap: 4,
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name={isLinked ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                            size={14}
+                            color={isLinked ? colors.primary : colors.textTertiary}
+                          />
+                          <Text style={{ fontSize: 11, fontWeight: isLinked ? '700' : '500', color: isLinked ? colors.primary : colors.text }} numberOfLines={1}>
+                            {p.name}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
             </ScrollView>
           </KeyboardAvoidingView>
         </View>
       </Modal>
 
-      {/* MODAL 2: ADD CATEGORY */}
+      {/* MODAL 2: ADD ARTICLE CATEGORY */}
       <Modal
         visible={isCategoryModalVisible}
         transparent
@@ -1622,6 +2201,429 @@ export default function AdminScreen() {
                 }}
               >
                 {isSavingCategory ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={{ color: '#FFF', fontWeight: '700' }}>Lưu danh mục</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 3: ADD / EDIT PRODUCT */}
+      <Modal
+        visible={isProductModalVisible}
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setIsProductModalVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          {/* Header */}
+          <View
+            style={[
+              styles.modalHeader,
+              {
+                paddingTop: Math.max(insets.top, 24) + 6,
+                paddingBottom: 10,
+                backgroundColor: colors.surface,
+                borderBottomColor: colors.border,
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => setIsProductModalVisible(false)}
+              hitSlop={10}
+              style={{ padding: 4 }}
+            >
+              <MaterialCommunityIcons name="close" size={22} color={colors.text} />
+            </Pressable>
+
+            <Text
+              style={[typo.titleSmall, { color: colors.text, fontWeight: '800', flex: 1, textAlign: 'center', marginHorizontal: 8 }]}
+              numberOfLines={1}
+            >
+              {editingProduct ? 'Chỉnh sửa sản phẩm' : 'Thêm sản phẩm mới'}
+            </Text>
+
+            <Pressable
+              onPress={handleSaveProduct}
+              disabled={isSavingProduct}
+              hitSlop={6}
+              style={{
+                backgroundColor: colors.primary,
+                paddingHorizontal: 14,
+                paddingVertical: 6,
+                borderRadius: radius.full,
+                minWidth: 54,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {isSavingProduct ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 13 }}>Lưu</Text>
+              )}
+            </Pressable>
+          </View>
+
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <ScrollView
+              contentContainerStyle={{
+                paddingHorizontal: 14,
+                paddingTop: 10,
+                paddingBottom: insets.bottom + 40,
+                gap: 10,
+              }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Product Name */}
+              <View>
+                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  Tên sản phẩm *
+                </Text>
+                <TextInput
+                  value={formProdName}
+                  onChangeText={setFormProdName}
+                  placeholder="Ví dụ: Sữa tắm dưỡng lông SOS cho chó mèo 530ml"
+                  placeholderTextColor={colors.textTertiary}
+                  style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                />
+              </View>
+
+              {/* Price & Merchant */}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                    Giá tham khảo (VNĐ)
+                  </Text>
+                  <TextInput
+                    value={formProdPrice}
+                    onChangeText={setFormProdPrice}
+                    placeholder="Ví dụ: 125000"
+                    placeholderTextColor={colors.textTertiary}
+                    keyboardType="numeric"
+                    style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                    Sàn / Nhà bán hàng
+                  </Text>
+                  <TextInput
+                    value={formProdMerchant}
+                    onChangeText={setFormProdMerchant}
+                    placeholder="Shopee, Lazada, Tiki..."
+                    placeholderTextColor={colors.textTertiary}
+                    style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  />
+                </View>
+              </View>
+
+              {/* Quick Merchant Selector */}
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {['Shopee', 'Lazada', 'Tiki', 'TikTok Shop', 'Đối tác'].map((m) => {
+                  const isSel = formProdMerchant === m;
+                  return (
+                    <Pressable
+                      key={m}
+                      onPress={() => setFormProdMerchant(m)}
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: radius.sm,
+                        backgroundColor: isSel ? '#FEE2E2' : colors.surfaceElevated,
+                        borderColor: isSel ? '#DC2626' : colors.border,
+                        borderWidth: 1,
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: isSel ? '700' : '500', color: isSel ? '#DC2626' : colors.textSecondary }}>
+                        {m}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Affiliate URL */}
+              <View>
+                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  Đường dẫn liên kết Affiliate (Shopee, Lazada...) *
+                </Text>
+                <TextInput
+                  value={formProdAffiliateUrl}
+                  onChangeText={setFormProdAffiliateUrl}
+                  placeholder="https://shope.ee/... hoặc https://s.lazada.vn/..."
+                  placeholderTextColor={colors.textTertiary}
+                  style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                />
+              </View>
+
+              {/* Product Category */}
+              <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <Text style={[typo.labelSmall, { color: colors.text, fontWeight: '700' }]}>
+                    Danh mục sản phẩm
+                  </Text>
+                  <Pressable onPress={() => setIsProdCategoryModalVisible(true)} hitSlop={6}>
+                    <Text style={{ fontSize: 11, color: colors.primary, fontWeight: '700' }}>+ Thêm danh mục</Text>
+                  </Pressable>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  {productCategories.map((c) => {
+                    const isSel = formProdCategoryId === c.id;
+                    return (
+                      <Pressable
+                        key={c.id}
+                        onPress={() => setFormProdCategoryId(c.id)}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: radius.sm,
+                          backgroundColor: isSel ? colors.primary : colors.surface,
+                          borderColor: isSel ? colors.primary : colors.border,
+                          borderWidth: 1,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.text }}>
+                          {c.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* Pet Type Target (Strictly Dog & Cat Only) */}
+              <View>
+                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  Loài thú cưng phù hợp (Chó & Mèo)
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {[
+                    { key: 'all', label: 'Tất cả (Chó & Mèo)', icon: 'paw' },
+                    { key: 'dog', label: 'Chó cưng', icon: 'dog' },
+                    { key: 'cat', label: 'Mèo cưng', icon: 'cat' },
+                  ].map((s) => {
+                    const isSel = formProdPetType === s.key;
+                    return (
+                      <Pressable
+                        key={s.key}
+                        onPress={() => setFormProdPetType(s.key as ProductPetType)}
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          paddingVertical: 7,
+                          paddingHorizontal: 6,
+                          borderRadius: radius.sm,
+                          backgroundColor: isSel ? colors.primary : colors.surface,
+                          borderColor: isSel ? colors.primary : colors.border,
+                          borderWidth: 1,
+                          gap: 4,
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name={s.icon as any}
+                          size={14}
+                          color={isSel ? '#FFFFFF' : colors.textSecondary}
+                        />
+                        <Text style={{ fontSize: 11, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.text }}>
+                          {s.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Product Image URL */}
+              <View>
+                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  Đường dẫn ảnh sản phẩm (Image URL)
+                </Text>
+                <TextInput
+                  value={formProdImageUrl}
+                  onChangeText={(val) => {
+                    setFormProdImageUrl(val);
+                    setProdImageError(false);
+                  }}
+                  placeholder="https://..."
+                  placeholderTextColor={colors.textTertiary}
+                  style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                />
+                {Boolean(formProdImageUrl.trim()) &&
+                  (formProdImageUrl.trim().startsWith('http://') || formProdImageUrl.trim().startsWith('https://')) &&
+                  !prodImageError && (
+                    <View style={{ height: 85, borderRadius: 6, marginTop: 6, overflow: 'hidden', backgroundColor: colors.surfaceElevated }}>
+                      <Image
+                        source={{ uri: formProdImageUrl.trim() }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="contain"
+                        onError={() => setProdImageError(true)}
+                      />
+                    </View>
+                )}
+              </View>
+
+              {/* Description */}
+              <View>
+                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  Mô tả sản phẩm & Ưu điểm nổi bật
+                </Text>
+                <TextInput
+                  value={formProdDescription}
+                  onChangeText={setFormProdDescription}
+                  placeholder="Mô tả công dụng, thành phần, cách dùng..."
+                  placeholderTextColor={colors.textTertiary}
+                  multiline
+                  numberOfLines={3}
+                  style={[styles.modalInputCompact, { height: 60, backgroundColor: colors.surface, borderColor: colors.border, color: colors.text, textAlignVertical: 'top' }]}
+                />
+              </View>
+
+              {/* Linked Knowledge Articles */}
+              {adminArticles.length > 0 && (
+                <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 8, gap: 6 }}>
+                  <Text style={[typo.labelSmall, { color: colors.text, fontWeight: '700' }]}>
+                    Gắn vào bài viết kiến thức liên quan ({formProdLinkedArticleIds.length})
+                  </Text>
+                  <Text style={{ fontSize: 10, color: colors.textSecondary }}>
+                    Sản phẩm sẽ xuất hiện ở mục "Sản phẩm liên quan khuyên dùng" trong bài viết
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: 4 }}>
+                    {adminArticles.map((art) => {
+                      const isLinked = formProdLinkedArticleIds.includes(art.id);
+                      return (
+                        <Pressable
+                          key={art.id}
+                          onPress={() => {
+                            if (isLinked) {
+                              setFormProdLinkedArticleIds((prev) => prev.filter((id) => id !== art.id));
+                            } else {
+                              setFormProdLinkedArticleIds((prev) => [...prev, art.id]);
+                            }
+                          }}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            paddingHorizontal: 8,
+                            paddingVertical: 5,
+                            borderRadius: radius.sm,
+                            backgroundColor: isLinked ? colors.primaryContainer || '#DBEAFE' : colors.surfaceElevated,
+                            borderColor: isLinked ? colors.primary : colors.border,
+                            borderWidth: 1,
+                            gap: 4,
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name={isLinked ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                            size={14}
+                            color={isLinked ? colors.primary : colors.textTertiary}
+                          />
+                          <Text style={{ fontSize: 11, fontWeight: isLinked ? '700' : '500', color: isLinked ? colors.primary : colors.text }} numberOfLines={1}>
+                            {art.title}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Status Selector */}
+              <View>
+                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  Trạng thái sản phẩm
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {[
+                    { key: 'active', label: '✅ Đang hiển thị', color: '#16A34A' },
+                    { key: 'draft', label: '📝 Bản nháp', color: '#64748B' },
+                    { key: 'hidden', label: '🔒 Tạm ẩn', color: '#D97706' },
+                  ].map((st) => {
+                    const isSel = formProdStatus === st.key;
+                    return (
+                      <Pressable
+                        key={st.key}
+                        onPress={() => setFormProdStatus(st.key as ProductStatus)}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 7,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: radius.sm,
+                          backgroundColor: isSel ? colors.surfaceElevated : colors.surface,
+                          borderColor: isSel ? st.color : colors.border,
+                          borderWidth: isSel ? 2 : 1,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: isSel ? '700' : '500', color: isSel ? st.color : colors.textSecondary }}>
+                          {st.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* MODAL 4: ADD PRODUCT CATEGORY */}
+      <Modal
+        visible={isProdCategoryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsProdCategoryModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.categoryDialog, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.lg }]}>
+            <Text style={[typo.titleMedium, { color: colors.text, fontWeight: '800', marginBottom: 12 }]}>
+              Thêm danh mục sản phẩm mới
+            </Text>
+
+            <Text style={[typo.caption, { color: colors.textSecondary, marginBottom: 6 }]}>
+              Tên danh mục (ví dụ: Dinh dưỡng & Hạt, Sữa tắm & Vệ sinh, Đồ chơi & Vận động)
+            </Text>
+            <TextInput
+              value={newProdCategoryName}
+              onChangeText={setNewProdCategoryName}
+              placeholder="Nhập tên danh mục sản phẩm..."
+              placeholderTextColor={colors.textTertiary}
+              style={[styles.modalInput, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, color: colors.text, marginBottom: 16 }]}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end' }}>
+              <Pressable
+                onPress={() => {
+                  setNewProdCategoryName('');
+                  setIsProdCategoryModalVisible(false);
+                }}
+                style={{ paddingVertical: 8, paddingHorizontal: 14 }}
+              >
+                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Hủy</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleSaveProdCategory}
+                disabled={isSavingProdCategory}
+                style={{
+                  backgroundColor: colors.primary,
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: radius.md,
+                }}
+              >
+                {isSavingProdCategory ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
                   <Text style={{ color: '#FFF', fontWeight: '700' }}>Lưu danh mục</Text>

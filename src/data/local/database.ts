@@ -272,6 +272,51 @@ export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
     console.warn('[Database] articles column migration warning:', e);
   }
 
+  // Ensure affiliate tables exist
+  try {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS product_categories (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        slug TEXT UNIQUE NOT NULL,
+        icon TEXT,
+        description TEXT,
+        sort_order INTEGER DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS affiliate_products (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        slug TEXT UNIQUE NOT NULL,
+        description TEXT NOT NULL,
+        image_url TEXT,
+        price REAL NOT NULL DEFAULT 0,
+        category_id TEXT,
+        category_name TEXT,
+        pet_type TEXT NOT NULL DEFAULT 'all',
+        merchant_name TEXT NOT NULL DEFAULT 'Shopee',
+        affiliate_url TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_by TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT,
+        sync_status TEXT NOT NULL DEFAULT 'synced',
+        last_synced_at TEXT,
+        local_updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS article_products (
+        article_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (article_id, product_id)
+      );
+    `);
+  } catch (e) {
+    console.warn('[Database] affiliate tables migration warning:', e);
+  }
+
   dbInstance = db;
   return db;
 }

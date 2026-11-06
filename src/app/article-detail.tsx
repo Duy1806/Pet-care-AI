@@ -25,7 +25,9 @@ import * as WebBrowser from 'expo-web-browser';
 
 import { useAppTheme } from '@/presentation/theme';
 import { useArticleStore } from '@/presentation/stores/useArticleStore';
+import { useAffiliateProductStore } from '@/presentation/stores/useAffiliateProductStore';
 import type { Article, TargetSpecies } from '@/domain/entities/Article';
+import type { AffiliateProduct } from '@/domain/entities/AffiliateProduct';
 
 function getSpeciesLabel(species?: TargetSpecies): { label: string; icon: string; color: string } {
   switch (species) {
@@ -346,17 +348,22 @@ export default function ArticleDetailScreen() {
   const insets = useSafeAreaInsets();
   const { colors, typography: typo, spacing, radius } = useAppTheme();
   const { currentArticle, loadArticleDetail, isLoading, articles } = useArticleStore();
+  const { getProductsByArticleId } = useAffiliateProductStore();
 
   const [article, setArticle] = useState<Article | null>(currentArticle?.id === id ? currentArticle : null);
   const [fontSizeMode, setFontSizeMode] = useState<'normal' | 'large'>('normal');
+  const [relatedProducts, setRelatedProducts] = useState<AffiliateProduct[]>([]);
 
   useEffect(() => {
     if (id) {
       void loadArticleDetail(id).then((res) => {
         if (res) setArticle(res);
       });
+      void getProductsByArticleId(id).then((prods) => {
+        setRelatedProducts(prods);
+      });
     }
-  }, [id, loadArticleDetail]);
+  }, [id, loadArticleDetail, getProductsByArticleId]);
 
   const handleOpenSource = async () => {
     if (!article?.sourceUrl) return;
@@ -611,6 +618,93 @@ export default function ArticleDetailScreen() {
             )}
           </View>
 
+          {/* Related Affiliate Products Section */}
+          {relatedProducts.length > 0 && (
+            <View style={{ marginTop: spacing.xl }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <MaterialCommunityIcons name="shopping-outline" size={20} color={colors.primary} />
+                  <Text style={[typo.titleLarge, { color: colors.text, fontWeight: '700', marginLeft: 8 }]}>
+                    Sản phẩm liên quan khuyên dùng
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => router.push('/shop')}
+                  style={{ flexDirection: 'row', alignItems: 'center' }}
+                  hitSlop={8}
+                >
+                  <Text style={[typo.labelMedium, { color: colors.primary, fontWeight: '600' }]}>Xem Shop</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} />
+                </Pressable>
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                {relatedProducts.map((prod) => (
+                  <View
+                    key={prod.id}
+                    style={[
+                      styles.relatedProductCard,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        borderRadius: radius.md,
+                      },
+                    ]}
+                  >
+                    <Image
+                      source={{ uri: prod.imageUrl || 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=400' }}
+                      style={styles.relatedProductThumb}
+                      resizeMode="cover"
+                    />
+                    <View style={{ padding: 10, flex: 1, justifyContent: 'space-between' }}>
+                      <View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                          <View
+                            style={{
+                              backgroundColor: colors.primaryContainer || '#DBEAFE',
+                              paddingHorizontal: 6,
+                              paddingVertical: 2,
+                              borderRadius: 4,
+                            }}
+                          >
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: colors.primary }}>
+                              {prod.merchantName || 'Shopee'}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={[typo.titleSmall, { color: colors.text, fontWeight: '700' }]} numberOfLines={2}>
+                          {prod.name}
+                        </Text>
+                        <Text style={[typo.labelLarge, { color: '#E11D48', fontWeight: '800', marginTop: 4 }]}>
+                          {prod.price > 0 ? `${prod.price.toLocaleString('vi-VN')} đ` : 'Xem giá ưu đãi'}
+                        </Text>
+                      </View>
+
+                      <Pressable
+                        onPress={async () => {
+                          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          if (prod.affiliateUrl) {
+                            try {
+                              await WebBrowser.openBrowserAsync(prod.affiliateUrl);
+                            } catch {
+                              await Linking.openURL(prod.affiliateUrl).catch(() => {
+                                Alert.alert('Lỗi', 'Không thể mở liên kết mua sắm.');
+                              });
+                            }
+                          }
+                        }}
+                        style={[styles.buyBtnSmall, { backgroundColor: colors.primary, borderRadius: radius.sm }]}
+                      >
+                        <MaterialCommunityIcons name="cart-outline" size={14} color="#FFF" />
+                        <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700', marginLeft: 4 }}>Mua ngay</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
           {/* Related Articles */}
           {relatedArticles.length > 0 && (
             <View style={{ marginTop: spacing.xl }}>
@@ -762,6 +856,24 @@ const styles = StyleSheet.create({
     height: 68,
     borderRadius: 8,
     backgroundColor: '#E2E8F0',
+  },
+  relatedProductCard: {
+    width: 190,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  relatedProductThumb: {
+    width: '100%',
+    height: 120,
+    backgroundColor: '#334155',
+  },
+  buyBtnSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginTop: 8,
   },
 });
 

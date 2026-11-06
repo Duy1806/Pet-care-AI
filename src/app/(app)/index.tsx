@@ -697,6 +697,53 @@ export default function HomeScreen() {
             </View>
             <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
           </Pressable>
+
+          {/* Banner PetCare Shop / Sản phẩm thú cưng */}
+          <Pressable
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/shop' as any);
+            }}
+            style={[
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderWidth: 1,
+                borderRadius: radius.lg,
+                marginTop: spacing.sm,
+                padding: spacing.md,
+                flexDirection: 'row',
+                alignItems: 'center',
+              },
+            ]}
+          >
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                backgroundColor: '#FEF3C7',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <MaterialCommunityIcons name="shopping" size={24} color="#D97706" />
+            </View>
+            <View style={{ flex: 1, marginLeft: spacing.md }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[typo.titleSmall, { color: colors.text, fontWeight: '700' }]}>
+                  Sản phẩm dành cho thú cưng
+                </Text>
+                <View style={{ backgroundColor: '#D97706', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                  <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700' }}>SHOP</Text>
+                </View>
+              </View>
+              <Text style={[typo.bodySmall, { color: colors.textSecondary, marginTop: 2 }]} numberOfLines={1}>
+                Đồ dùng, thức ăn & phụ kiện chọn lọc từ Shopee, Lazada
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
+          </Pressable>
         </View>
 
         {/* Section 3: Today's Care Reminders Checklist */}

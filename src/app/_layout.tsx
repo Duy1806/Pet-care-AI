@@ -220,6 +220,12 @@ function RootNavigator() {
           }}
         />
         <Stack.Screen
+          name="shop"
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
           name="admin"
           options={{
             animation: 'slide_from_right',

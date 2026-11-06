@@ -14,6 +14,7 @@ import { WeightLogDao } from '../local/WeightLogDao';
 import { VaccinationDao } from '../local/VaccinationDao';
 import { CareReminderDao } from '../local/CareReminderDao';
 import { ArticleDao } from '../local/ArticleDao';
+import { AffiliateProductDao } from '../local/AffiliateProductDao';
 import { supabase } from '../remote/supabaseClient';
 
 export interface RemoteSyncClient {
@@ -111,6 +112,18 @@ async function sanitizeServerPayload(
     if (serverPayload.views_count !== undefined) {
       serverPayload.views_count = Number(serverPayload.views_count) || 0;
     }
+  } else if (table === 'affiliate_products') {
+    if (serverPayload.pet_type && !['all', 'dog', 'cat'].includes(serverPayload.pet_type)) {
+      serverPayload.pet_type = 'all';
+    }
+    if (serverPayload.status && !['active', 'draft', 'hidden'].includes(serverPayload.status)) {
+      serverPayload.status = 'active';
+    }
+    if (serverPayload.price !== undefined) {
+      serverPayload.price = Number(serverPayload.price) || 0;
+    }
+    delete serverPayload.category_name;
+    delete serverPayload.article_ids;
   }
 
   return serverPayload;
@@ -189,6 +202,7 @@ export class SyncEngine {
   private readonly vaccinationDao: VaccinationDao;
   private readonly careReminderDao: CareReminderDao;
   private readonly articleDao: ArticleDao;
+  private readonly affiliateProductDao: AffiliateProductDao;
   private isSyncing = false;
 
   constructor(
@@ -201,6 +215,7 @@ export class SyncEngine {
     this.vaccinationDao = new VaccinationDao(db);
     this.careReminderDao = new CareReminderDao(db);
     this.articleDao = new ArticleDao(db);
+    this.affiliateProductDao = new AffiliateProductDao(db);
   }
 
   /**
@@ -253,6 +268,8 @@ export class SyncEngine {
           await this.careReminderDao.markSynced(entry.entity_id);
         } else if (entry.entity_table === 'articles') {
           await this.articleDao.markSynced(entry.entity_id);
+        } else if (entry.entity_table === 'affiliate_products') {
+          await this.affiliateProductDao.markSynced(entry.entity_id);
         }
         pushedCount++;
       } catch (err: any) {
@@ -298,6 +315,9 @@ export class SyncEngine {
       } else if (tableName === 'articles') {
         await this.articleDao.upsertFromRemote(row);
         updatedCount++;
+      } else if (tableName === 'affiliate_products') {
+        await this.affiliateProductDao.upsertFromRemote(row);
+        updatedCount++;
       }
     }
 
@@ -331,13 +351,15 @@ export class SyncEngine {
       const vaccsPull = await this.pullTable('vaccinations');
       const remindersPull = await this.pullTable('reminders');
       const articlesPull = await this.pullTable('articles').catch(() => ({ updatedCount: 0 }));
+      const productsPull = await this.pullTable('affiliate_products').catch(() => ({ updatedCount: 0 }));
 
       const pulledCount =
         petsPull.updatedCount +
         weightsPull.updatedCount +
         vaccsPull.updatedCount +
         remindersPull.updatedCount +
-        articlesPull.updatedCount;
+        articlesPull.updatedCount +
+        productsPull.updatedCount;
 
       return { pushedCount, pulledCount, errors };
     } finally {
