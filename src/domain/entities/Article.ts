@@ -4,7 +4,7 @@
 
 export type ArticleStatus = 'draft' | 'published' | 'hidden';
 
-export type TargetSpecies = 'all' | 'dog' | 'cat' | 'bird' | 'rabbit' | 'hamster';
+export type TargetSpecies = 'all' | 'dog' | 'cat';
 
 export interface BlogCategory {
   id: string;
@@ -60,3 +60,4 @@ export interface UpdateArticleInput {
   sourceName?: string | null;
   status?: ArticleStatus;
 }
+

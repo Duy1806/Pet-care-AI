@@ -33,14 +33,8 @@ function getSpeciesLabel(species?: TargetSpecies): { label: string; icon: string
       return { label: 'Chó cưng', icon: 'dog', color: '#0284C7' };
     case 'cat':
       return { label: 'Mèo cưng', icon: 'cat', color: '#7C3AED' };
-    case 'bird':
-      return { label: 'Chim cảnh', icon: 'bird', color: '#059669' };
-    case 'hamster':
-      return { label: 'Hamster', icon: 'rodent', color: '#D97706' };
-    case 'rabbit':
-      return { label: 'Thỏ cưng', icon: 'rabbit', color: '#EA580C' };
     default:
-      return { label: 'Tất cả thú cưng', icon: 'paw', color: '#16A34A' };
+      return { label: 'Chó & Mèo', icon: 'paw', color: '#16A34A' };
   }
 }
 
@@ -607,3 +601,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#E2E8F0',
   },
 });
+

@@ -13,6 +13,7 @@ import { PetDao } from '../local/PetDao';
 import { WeightLogDao } from '../local/WeightLogDao';
 import { VaccinationDao } from '../local/VaccinationDao';
 import { CareReminderDao } from '../local/CareReminderDao';
+import { ArticleDao } from '../local/ArticleDao';
 import { supabase } from '../remote/supabaseClient';
 
 export interface RemoteSyncClient {
@@ -100,6 +101,16 @@ async function sanitizeServerPayload(
     if (serverPayload.type && !['vaccine', 'deworming', 'flea_tick'].includes(serverPayload.type)) {
       serverPayload.type = 'vaccine';
     }
+  } else if (table === 'articles') {
+    if (serverPayload.target_species && !['all', 'dog', 'cat'].includes(serverPayload.target_species)) {
+      serverPayload.target_species = 'all';
+    }
+    if (serverPayload.status && !['published', 'draft', 'hidden'].includes(serverPayload.status)) {
+      serverPayload.status = 'published';
+    }
+    if (serverPayload.views_count !== undefined) {
+      serverPayload.views_count = Number(serverPayload.views_count) || 0;
+    }
   }
 
   return serverPayload;
@@ -177,6 +188,7 @@ export class SyncEngine {
   private readonly weightLogDao: WeightLogDao;
   private readonly vaccinationDao: VaccinationDao;
   private readonly careReminderDao: CareReminderDao;
+  private readonly articleDao: ArticleDao;
   private isSyncing = false;
 
   constructor(
@@ -188,6 +200,7 @@ export class SyncEngine {
     this.weightLogDao = new WeightLogDao(db);
     this.vaccinationDao = new VaccinationDao(db);
     this.careReminderDao = new CareReminderDao(db);
+    this.articleDao = new ArticleDao(db);
   }
 
   /**
@@ -238,6 +251,8 @@ export class SyncEngine {
           await this.vaccinationDao.markSynced(entry.entity_id);
         } else if (entry.entity_table === 'reminders') {
           await this.careReminderDao.markSynced(entry.entity_id);
+        } else if (entry.entity_table === 'articles') {
+          await this.articleDao.markSynced(entry.entity_id);
         }
         pushedCount++;
       } catch (err: any) {
@@ -280,6 +295,9 @@ export class SyncEngine {
       } else if (tableName === 'reminders') {
         await this.careReminderDao.upsertFromRemote(row);
         updatedCount++;
+      } else if (tableName === 'articles') {
+        await this.articleDao.upsertFromRemote(row);
+        updatedCount++;
       }
     }
 
@@ -312,12 +330,14 @@ export class SyncEngine {
       const weightsPull = await this.pullTable('weight_logs');
       const vaccsPull = await this.pullTable('vaccinations');
       const remindersPull = await this.pullTable('reminders');
+      const articlesPull = await this.pullTable('articles').catch(() => ({ updatedCount: 0 }));
 
       const pulledCount =
         petsPull.updatedCount +
         weightsPull.updatedCount +
         vaccsPull.updatedCount +
-        remindersPull.updatedCount;
+        remindersPull.updatedCount +
+        articlesPull.updatedCount;
 
       return { pushedCount, pulledCount, errors };
     } finally {

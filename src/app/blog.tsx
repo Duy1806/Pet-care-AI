@@ -33,12 +33,9 @@ interface SpeciesTab {
 }
 
 const SPECIES_TABS: SpeciesTab[] = [
-  { id: 'all', label: 'Tất cả', icon: 'paw' },
-  { id: 'dog', label: 'Chó', icon: 'dog' },
-  { id: 'cat', label: 'Mèo', icon: 'cat' },
-  { id: 'bird', label: 'Chim cảnh', icon: 'bird' },
-  { id: 'hamster', label: 'Hamster', icon: 'rodent' },
-  { id: 'rabbit', label: 'Thỏ', icon: 'rabbit' },
+  { id: 'all', label: 'Tất cả (Chó & Mèo)', icon: 'paw' },
+  { id: 'dog', label: 'Chó cưng', icon: 'dog' },
+  { id: 'cat', label: 'Mèo cưng', icon: 'cat' },
 ];
 
 function formatDateVi(dateStr?: string | null): string {
@@ -489,3 +486,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
 });
+

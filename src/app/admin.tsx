@@ -12,7 +12,9 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -1279,24 +1281,49 @@ export default function AdminScreen() {
       <Modal
         visible={isArticleModalVisible}
         animationType="slide"
+        statusBarTranslucent
         onRequestClose={() => setIsArticleModalVisible(false)}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <Pressable onPress={() => setIsArticleModalVisible(false)} hitSlop={8}>
-              <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          {/* Compact Top Header with Safe Notch Padding */}
+          <View
+            style={[
+              styles.modalHeader,
+              {
+                paddingTop: Math.max(insets.top, 24) + 6,
+                paddingBottom: 10,
+                backgroundColor: colors.surface,
+                borderBottomColor: colors.border,
+              },
+            ]}
+          >
+            <Pressable
+              onPress={() => setIsArticleModalVisible(false)}
+              hitSlop={10}
+              style={{ padding: 4 }}
+            >
+              <MaterialCommunityIcons name="close" size={22} color={colors.text} />
             </Pressable>
-            <Text style={[typo.titleMedium, { color: colors.text, fontWeight: '800' }]}>
+
+            <Text
+              style={[typo.titleSmall, { color: colors.text, fontWeight: '800', flex: 1, textAlign: 'center', marginHorizontal: 8 }]}
+              numberOfLines={1}
+            >
               {editingArticle ? 'Chỉnh sửa bài viết' : 'Thêm bài viết mới'}
             </Text>
+
             <Pressable
               onPress={handleSaveArticle}
               disabled={isSavingArticle}
+              hitSlop={6}
               style={{
                 backgroundColor: colors.primary,
                 paddingHorizontal: 14,
-                paddingVertical: 7,
-                borderRadius: radius.md,
+                paddingVertical: 6,
+                borderRadius: radius.full,
+                minWidth: 54,
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
               {isSavingArticle ? (
@@ -1307,219 +1334,235 @@ export default function AdminScreen() {
             </Pressable>
           </View>
 
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
-            {/* Title */}
-            <View>
-              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4, fontWeight: '700' }]}>
-                Tiêu đề bài viết *
-              </Text>
-              <TextInput
-                value={formTitle}
-                onChangeText={setFormTitle}
-                placeholder="Ví dụ: Hướng dẫn tắm cho chó đúng cách"
-                placeholderTextColor={colors.textTertiary}
-                style={[styles.modalInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-              />
-            </View>
-
-            {/* Category Picker */}
-            <View>
-              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4, fontWeight: '700' }]}>
-                Danh mục bài viết
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {categories.map((c) => {
-                  const isSel = formCategoryId === c.id;
-                  return (
-                    <Pressable
-                      key={c.id}
-                      onPress={() => setFormCategoryId(c.id)}
-                      style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 7,
-                        borderRadius: radius.md,
-                        backgroundColor: isSel ? colors.primary : colors.surface,
-                        borderColor: isSel ? colors.primary : colors.border,
-                        borderWidth: 1,
-                      }}
-                    >
-                      <Text style={{ fontSize: 12, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.text }}>
-                        {c.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-
-            {/* Target Species Picker */}
-            <View>
-              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4, fontWeight: '700' }]}>
-                Đối tượng thú cưng áp dụng
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                {[
-                  { key: 'all', label: 'Tất cả thú cưng' },
-                  { key: 'dog', label: 'Chó' },
-                  { key: 'cat', label: 'Mèo' },
-                  { key: 'bird', label: 'Chim cảnh' },
-                  { key: 'hamster', label: 'Hamster' },
-                  { key: 'rabbit', label: 'Thỏ' },
-                ].map((s) => {
-                  const isSel = formSpecies === s.key;
-                  return (
-                    <Pressable
-                      key={s.key}
-                      onPress={() => setFormSpecies(s.key as TargetSpecies)}
-                      style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 7,
-                        borderRadius: radius.md,
-                        backgroundColor: isSel ? '#0284C7' : colors.surface,
-                        borderColor: isSel ? '#0284C7' : colors.border,
-                        borderWidth: 1,
-                      }}
-                    >
-                      <Text style={{ fontSize: 12, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.text }}>
-                        {s.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Cover Image URL */}
-            <View>
-              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4, fontWeight: '700' }]}>
-                Đường dẫn ảnh bìa (Cover Image URL)
-              </Text>
-              <TextInput
-                value={formCoverUrl}
-                onChangeText={setFormCoverUrl}
-                placeholder="https://images.unsplash.com/..."
-                placeholderTextColor={colors.textTertiary}
-                style={[styles.modalInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-              />
-              {Boolean(formCoverUrl) && (
-                <Image
-                  source={{ uri: formCoverUrl }}
-                  style={{ width: '100%', height: 140, borderRadius: 8, marginTop: 8 }}
-                  resizeMode="cover"
-                />
-              )}
-            </View>
-
-            {/* Excerpt */}
-            <View>
-              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4, fontWeight: '700' }]}>
-                Mô tả ngắn (Tóm tắt 1-2 câu) *
-              </Text>
-              <TextInput
-                value={formExcerpt}
-                onChangeText={setFormExcerpt}
-                placeholder="Tóm tắt ngắn gọn nội dung bài viết hiển thị ở danh sách..."
-                placeholderTextColor={colors.textTertiary}
-                multiline
-                numberOfLines={2}
-                style={[styles.modalInput, { height: 64, backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-              />
-            </View>
-
-            {/* Full Content */}
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <Text style={[typo.labelMedium, { color: colors.text, fontWeight: '700' }]}>
-                  Nội dung chi tiết bài viết *
-                </Text>
-                <Text style={[typo.caption, { color: colors.primary }]}>
-                  Hỗ trợ ## tiêu đề, - gạch đầu dòng, &gt; lưu ý
-                </Text>
-              </View>
-              <TextInput
-                value={formContent}
-                onChangeText={setFormContent}
-                placeholder="Soạn thảo nội dung bài viết tại đây. Sử dụng ## Tiêu đề mục lớn, - gạch đầu dòng, > Lời khuyên thú y..."
-                placeholderTextColor={colors.textTertiary}
-                multiline
-                numberOfLines={10}
-                style={[styles.modalInput, { height: 200, backgroundColor: colors.surface, borderColor: colors.border, color: colors.text, textAlignVertical: 'top' }]}
-              />
-            </View>
-
-            {/* Source Reference: Website Name & URL */}
-            <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 12, gap: 10 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <MaterialCommunityIcons name="shield-check-outline" size={18} color={colors.primary} />
-                <Text style={[typo.labelMedium, { color: colors.text, fontWeight: '700' }]}>
-                  Nguồn tham khảo & Tôn trọng bản quyền
-                </Text>
-              </View>
-
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <ScrollView
+              contentContainerStyle={{
+                paddingHorizontal: 14,
+                paddingTop: 10,
+                paddingBottom: insets.bottom + 40,
+                gap: 10,
+              }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Title */}
               <View>
-                <Text style={[typo.caption, { color: colors.textSecondary, marginBottom: 4 }]}>
-                  Tên website hoặc tác giả nguồn
+                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  Tiêu đề bài viết *
                 </Text>
+                <TextInput
+                  value={formTitle}
+                  onChangeText={setFormTitle}
+                  placeholder="Ví dụ: Hướng dẫn chăm sóc lông chó mèo"
+                  placeholderTextColor={colors.textTertiary}
+                  style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                />
+              </View>
+
+              {/* Category Picker */}
+              <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <Text style={[typo.labelSmall, { color: colors.text, fontWeight: '700' }]}>
+                    Danh mục bài viết
+                  </Text>
+                  <Pressable onPress={() => setIsCategoryModalVisible(true)} hitSlop={6}>
+                    <Text style={{ fontSize: 11, color: colors.primary, fontWeight: '700' }}>+ Thêm danh mục</Text>
+                  </Pressable>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                  {categories.map((c) => {
+                    const isSel = formCategoryId === c.id;
+                    return (
+                      <Pressable
+                        key={c.id}
+                        onPress={() => setFormCategoryId(c.id)}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: radius.sm,
+                          backgroundColor: isSel ? colors.primary : colors.surface,
+                          borderColor: isSel ? colors.primary : colors.border,
+                          borderWidth: 1,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.text }}>
+                          {c.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* Target Species Picker (Strictly Dog & Cat Only) */}
+              <View>
+                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  Đối tượng thú cưng áp dụng (Chó & Mèo)
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {[
+                    { key: 'all', label: 'Tất cả (Chó & Mèo)', icon: 'paw' },
+                    { key: 'dog', label: 'Chó cưng', icon: 'dog' },
+                    { key: 'cat', label: 'Mèo cưng', icon: 'cat' },
+                  ].map((s) => {
+                    const isSel = formSpecies === s.key;
+                    return (
+                      <Pressable
+                        key={s.key}
+                        onPress={() => setFormSpecies(s.key as TargetSpecies)}
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          paddingVertical: 7,
+                          paddingHorizontal: 6,
+                          borderRadius: radius.sm,
+                          backgroundColor: isSel ? colors.primary : colors.surface,
+                          borderColor: isSel ? colors.primary : colors.border,
+                          borderWidth: 1,
+                          gap: 4,
+                        }}
+                      >
+                        <MaterialCommunityIcons
+                          name={s.icon as any}
+                          size={14}
+                          color={isSel ? '#FFFFFF' : colors.textSecondary}
+                        />
+                        <Text style={{ fontSize: 11, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.text }}>
+                          {s.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Cover Image URL */}
+              <View>
+                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  Đường dẫn ảnh bìa (Cover Image URL)
+                </Text>
+                <TextInput
+                  value={formCoverUrl}
+                  onChangeText={setFormCoverUrl}
+                  placeholder="https://images.unsplash.com/..."
+                  placeholderTextColor={colors.textTertiary}
+                  style={[styles.modalInputCompact, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                />
+                {Boolean(formCoverUrl) && (
+                  <Image
+                    source={{ uri: formCoverUrl }}
+                    style={{ width: '100%', height: 90, borderRadius: 6, marginTop: 6 }}
+                    resizeMode="cover"
+                  />
+                )}
+              </View>
+
+              {/* Excerpt */}
+              <View>
+                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  Mô tả ngắn (Tóm tắt 1-2 câu) *
+                </Text>
+                <TextInput
+                  value={formExcerpt}
+                  onChangeText={setFormExcerpt}
+                  placeholder="Tóm tắt ngắn gọn nội dung bài viết..."
+                  placeholderTextColor={colors.textTertiary}
+                  multiline
+                  numberOfLines={2}
+                  style={[styles.modalInputCompact, { height: 46, backgroundColor: colors.surface, borderColor: colors.border, color: colors.text, textAlignVertical: 'top' }]}
+                />
+              </View>
+
+              {/* Full Content */}
+              <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                  <Text style={[typo.labelSmall, { color: colors.text, fontWeight: '700' }]}>
+                    Nội dung chi tiết bài viết *
+                  </Text>
+                  <Text style={{ fontSize: 10, color: colors.primary }}>
+                    ## tiêu đề, - gạch đầu dòng, &gt; lưu ý
+                  </Text>
+                </View>
+                <TextInput
+                  value={formContent}
+                  onChangeText={setFormContent}
+                  placeholder="Soạn thảo nội dung bài viết tại đây..."
+                  placeholderTextColor={colors.textTertiary}
+                  multiline
+                  numberOfLines={5}
+                  style={[styles.modalInputCompact, { height: 110, backgroundColor: colors.surface, borderColor: colors.border, color: colors.text, textAlignVertical: 'top' }]}
+                />
+              </View>
+
+              {/* Source Reference: Website Name & URL */}
+              <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: 8, gap: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <MaterialCommunityIcons name="shield-check-outline" size={15} color={colors.primary} />
+                  <Text style={[typo.labelSmall, { color: colors.text, fontWeight: '700' }]}>
+                    Nguồn tham khảo & Bản quyền
+                  </Text>
+                </View>
+
                 <TextInput
                   value={formSourceName}
                   onChangeText={setFormSourceName}
-                  placeholder="Ví dụ: American Kennel Club (AKC), PetMD, Bệnh viện thú y..."
+                  placeholder="Tên website / tác giả nguồn (ví dụ: AKC, PetMD...)"
                   placeholderTextColor={colors.textTertiary}
-                  style={[styles.modalInput, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, color: colors.text }]}
+                  style={[styles.modalInputCompact, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, color: colors.text }]}
                 />
-              </View>
 
-              <View>
-                <Text style={[typo.caption, { color: colors.textSecondary, marginBottom: 4 }]}>
-                  Đường dẫn liên kết URL nguồn gốc
-                </Text>
                 <TextInput
                   value={formSourceUrl}
                   onChangeText={setFormSourceUrl}
-                  placeholder="https://..."
+                  placeholder="Đường dẫn liên kết URL nguồn gốc (https://...)"
                   placeholderTextColor={colors.textTertiary}
-                  style={[styles.modalInput, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, color: colors.text }]}
+                  style={[styles.modalInputCompact, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, color: colors.text }]}
                 />
               </View>
-            </View>
 
-            {/* Status Selector */}
-            <View>
-              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4, fontWeight: '700' }]}>
-                Trạng thái đăng bài
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {[
-                  { key: 'published', label: '✅ Xuất bản ngay', color: '#16A34A' },
-                  { key: 'draft', label: '📝 Bản nháp', color: '#64748B' },
-                  { key: 'hidden', label: '🔒 Tạm ẩn', color: '#D97706' },
-                ].map((st) => {
-                  const isSel = formStatus === st.key;
-                  return (
-                    <Pressable
-                      key={st.key}
-                      onPress={() => setFormStatus(st.key as ArticleStatus)}
-                      style={{
-                        flex: 1,
-                        paddingVertical: 10,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: radius.md,
-                        backgroundColor: isSel ? colors.surfaceElevated : colors.surface,
-                        borderColor: isSel ? st.color : colors.border,
-                        borderWidth: isSel ? 2 : 1,
-                      }}
-                    >
-                      <Text style={{ fontSize: 12, fontWeight: isSel ? '700' : '500', color: isSel ? st.color : colors.textSecondary }}>
-                        {st.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+              {/* Status Selector */}
+              <View>
+                <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
+                  Trạng thái đăng bài
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {[
+                    { key: 'published', label: '✅ Xuất bản', color: '#16A34A' },
+                    { key: 'draft', label: '📝 Bản nháp', color: '#64748B' },
+                    { key: 'hidden', label: '🔒 Tạm ẩn', color: '#D97706' },
+                  ].map((st) => {
+                    const isSel = formStatus === st.key;
+                    return (
+                      <Pressable
+                        key={st.key}
+                        onPress={() => setFormStatus(st.key as ArticleStatus)}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 7,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderRadius: radius.sm,
+                          backgroundColor: isSel ? colors.surfaceElevated : colors.surface,
+                          borderColor: isSel ? st.color : colors.border,
+                          borderWidth: isSel ? 2 : 1,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: isSel ? '700' : '500', color: isSel ? st.color : colors.textSecondary }}>
+                          {st.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
-            </View>
-          </ScrollView>
-        </SafeAreaView>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* MODAL 2: ADD CATEGORY */}
@@ -1825,6 +1868,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
+  },
+  modalInputCompact: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    fontSize: 13,
   },
   modalBackdrop: {
     flex: 1,

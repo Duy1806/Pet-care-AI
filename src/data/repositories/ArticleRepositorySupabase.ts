@@ -191,29 +191,47 @@ export class ArticleRepositorySupabase implements ArticleRepository {
   }
 
   async getAllArticlesAdmin(params?: AdminArticleFilterParams): Promise<Article[]> {
-    let query = supabase
-      .from('articles')
-      .select('*, blog_categories(name, icon), profiles:author_id(full_name)')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
+    try {
+      let query = supabase
+        .from('articles')
+        .select('*, blog_categories(name, icon), profiles:author_id(full_name)')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
 
-    if (params?.status && params.status !== 'all') {
-      query = query.eq('status', params.status);
+      if (params?.status && params.status !== 'all') {
+        query = query.eq('status', params.status);
+      }
+
+      if (params?.search && params.search.trim()) {
+        const term = `%${params.search.trim()}%`;
+        query = query.or(`title.ilike.${term},excerpt.ilike.${term}`);
+      }
+
+      if (params?.limit) {
+        query = query.limit(params.limit);
+      }
+
+      const { data, error } = await query;
+      if (error) throw new Error(mapSupabaseError(error));
+
+      const articles = (data || []).map(mapRowToArticle);
+      try {
+        const db = await getDatabase();
+        const dao = new ArticleDao(db);
+        await dao.saveArticles(articles);
+      } catch {}
+
+      return articles;
+    } catch {
+      // Offline fallback: load from local SQLite
+      try {
+        const db = await getDatabase();
+        const dao = new ArticleDao(db);
+        return dao.getAllAdmin(params);
+      } catch {
+        return [];
+      }
     }
-
-    if (params?.search && params.search.trim()) {
-      const term = `%${params.search.trim()}%`;
-      query = query.or(`title.ilike.${term},excerpt.ilike.${term}`);
-    }
-
-    if (params?.limit) {
-      query = query.limit(params.limit);
-    }
-
-    const { data, error } = await query;
-    if (error) throw new Error(mapSupabaseError(error));
-
-    return (data || []).map(mapRowToArticle);
   }
 
   async createArticle(input: CreateArticleInput): Promise<Article> {
@@ -223,93 +241,120 @@ export class ArticleRepositorySupabase implements ArticleRepository {
       authorId = data?.session?.user?.id || null;
     } catch {}
 
-    const baseSlug = slugify(input.title);
-    const uniqueSlug = `${baseSlug}-${Date.now().toString().slice(-4)}`;
-
-    const rowToInsert = {
-      author_id: authorId,
-      category_id: input.categoryId || null,
-      title: input.title.trim(),
-      slug: uniqueSlug,
-      cover_image_url: input.coverImageUrl?.trim() || null,
-      excerpt: input.excerpt.trim(),
-      content: input.content.trim(),
-      target_species: input.targetSpecies || 'all',
-      source_url: input.sourceUrl?.trim() || null,
-      source_name: input.sourceName?.trim() || null,
-      status: input.status || 'published',
-      published_at: input.status === 'published' ? new Date().toISOString() : null,
-    };
-
-    const { data, error } = await supabase
-      .from('articles')
-      .insert(rowToInsert)
-      .select('*, blog_categories(name, icon), profiles:author_id(full_name)')
-      .single();
-
-    if (error || !data) {
-      throw new Error(mapSupabaseError(error));
-    }
-
-    const created = mapRowToArticle(data);
     try {
+      const baseSlug = slugify(input.title);
+      const uniqueSlug = `${baseSlug}-${Date.now().toString().slice(-4)}`;
+
+      const rowToInsert = {
+        author_id: authorId,
+        category_id: input.categoryId || null,
+        title: input.title.trim(),
+        slug: uniqueSlug,
+        cover_image_url: input.coverImageUrl?.trim() || null,
+        excerpt: input.excerpt.trim(),
+        content: input.content.trim(),
+        target_species: input.targetSpecies || 'all',
+        source_url: input.sourceUrl?.trim() || null,
+        source_name: input.sourceName?.trim() || null,
+        status: input.status || 'published',
+        published_at: input.status === 'published' ? new Date().toISOString() : null,
+      };
+
+      const { data, error } = await supabase
+        .from('articles')
+        .insert(rowToInsert)
+        .select('*, blog_categories(name, icon), profiles:author_id(full_name)')
+        .single();
+
+      if (error || !data) {
+        throw new Error(mapSupabaseError(error));
+      }
+
+      const created = mapRowToArticle(data);
+      try {
+        const db = await getDatabase();
+        const dao = new ArticleDao(db);
+        await dao.saveArticles([created]);
+      } catch {}
+
+      return created;
+    } catch {
+      // Offline fallback: Write to SQLite and add to Outbox
       const db = await getDatabase();
       const dao = new ArticleDao(db);
-      await dao.saveArticles([created]);
-    } catch {}
-
-    return created;
+      return dao.create(input, authorId);
+    }
   }
 
   async updateArticle(id: string, input: UpdateArticleInput): Promise<Article> {
-    const updates: Record<string, any> = {
-      updated_at: new Date().toISOString(),
-    };
-
-    if (input.title !== undefined) updates.title = input.title.trim();
-    if (input.categoryId !== undefined) updates.category_id = input.categoryId;
-    if (input.coverImageUrl !== undefined) updates.cover_image_url = input.coverImageUrl?.trim() || null;
-    if (input.excerpt !== undefined) updates.excerpt = input.excerpt.trim();
-    if (input.content !== undefined) updates.content = input.content.trim();
-    if (input.targetSpecies !== undefined) updates.target_species = input.targetSpecies;
-    if (input.sourceUrl !== undefined) updates.source_url = input.sourceUrl?.trim() || null;
-    if (input.sourceName !== undefined) updates.source_name = input.sourceName?.trim() || null;
-    if (input.status !== undefined) {
-      updates.status = input.status;
-      if (input.status === 'published') {
-        updates.published_at = new Date().toISOString();
-      }
-    }
-
-    const { data, error } = await supabase
-      .from('articles')
-      .update(updates)
-      .eq('id', id)
-      .select('*, blog_categories(name, icon), profiles:author_id(full_name)')
-      .single();
-
-    if (error || !data) {
-      throw new Error(mapSupabaseError(error));
-    }
-
-    const updated = mapRowToArticle(data);
     try {
+      const updates: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (input.title !== undefined) updates.title = input.title.trim();
+      if (input.categoryId !== undefined) updates.category_id = input.categoryId;
+      if (input.coverImageUrl !== undefined) updates.cover_image_url = input.coverImageUrl?.trim() || null;
+      if (input.excerpt !== undefined) updates.excerpt = input.excerpt.trim();
+      if (input.content !== undefined) updates.content = input.content.trim();
+      if (input.targetSpecies !== undefined) updates.target_species = input.targetSpecies;
+      if (input.sourceUrl !== undefined) updates.source_url = input.sourceUrl?.trim() || null;
+      if (input.sourceName !== undefined) updates.source_name = input.sourceName?.trim() || null;
+      if (input.status !== undefined) {
+        updates.status = input.status;
+        if (input.status === 'published') {
+          updates.published_at = new Date().toISOString();
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('articles')
+        .update(updates)
+        .eq('id', id)
+        .select('*, blog_categories(name, icon), profiles:author_id(full_name)')
+        .single();
+
+      if (error || !data) {
+        throw new Error(mapSupabaseError(error));
+      }
+
+      const updated = mapRowToArticle(data);
+      try {
+        const db = await getDatabase();
+        const dao = new ArticleDao(db);
+        await dao.saveArticles([updated]);
+      } catch {}
+
+      return updated;
+    } catch {
+      // Offline fallback: update SQLite & add to Outbox
       const db = await getDatabase();
       const dao = new ArticleDao(db);
-      await dao.saveArticles([updated]);
-    } catch {}
-
-    return updated;
+      return dao.update(id, input);
+    }
   }
 
   async deleteArticle(id: string): Promise<void> {
-    const now = new Date().toISOString();
-    const { error } = await supabase
-      .from('articles')
-      .update({ deleted_at: now, updated_at: now })
-      .eq('id', id);
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('articles')
+        .update({ deleted_at: now, updated_at: now })
+        .eq('id', id);
 
-    if (error) throw new Error(mapSupabaseError(error));
+      if (error) throw new Error(mapSupabaseError(error));
+
+      try {
+        const db = await getDatabase();
+        const dao = new ArticleDao(db);
+        await dao.softDelete(id);
+      } catch {}
+    } catch {
+      // Offline fallback: soft-delete in SQLite and queue in outbox
+      const db = await getDatabase();
+      const dao = new ArticleDao(db);
+      await dao.softDelete(id);
+    }
   }
 
   async toggleArticleStatus(id: string, status: ArticleStatus): Promise<Article> {
@@ -344,3 +389,4 @@ export class ArticleRepositorySupabase implements ArticleRepository {
 }
 
 export const articleRepository = new ArticleRepositorySupabase();
+

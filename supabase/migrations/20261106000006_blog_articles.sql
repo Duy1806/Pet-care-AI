@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS public.articles (
     cover_image_url TEXT,
     excerpt TEXT NOT NULL,
     content TEXT NOT NULL,
-    target_species TEXT NOT NULL DEFAULT 'all' CHECK (target_species IN ('all', 'dog', 'cat', 'bird', 'rabbit', 'hamster')),
+    target_species TEXT NOT NULL DEFAULT 'all' CHECK (target_species IN ('all', 'dog', 'cat')),
     source_url TEXT,
     source_name TEXT,
     status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('draft', 'published', 'hidden')),
@@ -115,7 +115,7 @@ VALUES
     ('c1111111-1111-1111-1111-111111111111', 'Vệ sinh & Làm đẹp', 've-sinh-lam-dep', 'shower', 'Kỹ thuật tắm rửa, tỉa lông, chải chuốt và vệ sinh tai mắt', 1),
     ('c2222222-2222-2222-2222-222222222222', 'Dinh dưỡng & Bữa ăn', 'dinh-duong-bua-an', 'food-drumstick', 'Thực phẩm dinh dưỡng, chế độ ăn an toàn và các món kiêng kỵ', 2),
     ('c3333333-3333-3333-3333-333333333333', 'Sức khỏe & Y tế', 'suc-khoe-y-te', 'medical-bag', 'Phòng ngừa bệnh tật, lịch tiêm phòng và sơ cứu khẩn cấp', 3),
-    ('c4444444-4444-4444-4444-444444444444', 'Thú cưng nhỏ & Đặc biệt', 'thu-cung-nho', 'paw', 'Kinh nghiệm nuôi dưỡng Hamster, Chim cảnh, Thỏ và Bò sát', 4),
+    ('c4444444-4444-4444-4444-444444444444', 'Phòng ngừa & Tiêm chủng', 'phong-ngua-tiem-chung', 'needle', 'Lịch tiêm phòng, tẩy giun và ngừa ve rận cho chó mèo', 4),
     ('c5555555-5555-5555-5555-555555555555', 'Huấn luyện & Tập tính', 'huan-luyen-hanh-vi', 'school', 'Thấu hiểu tâm lý, dạy đi vệ sinh đúng chỗ và các bài tập cơ bản', 5)
 ON CONFLICT (slug) DO NOTHING;
 
@@ -241,45 +241,51 @@ Bộ lông của chó mèo phản ánh trực tiếp sức khỏe bên trong. Đ
 (
     'a5555555-5555-5555-5555-555555555555',
     'c4444444-4444-4444-4444-444444444444',
-    'Cẩm nang nuôi dưỡng Hamster cơ bản dành cho người mới bắt đầu',
-    'cam-nang-nuoi-duong-hamster-co-ban',
-    'https://images.unsplash.com/photo-1548767797-d8c844163c4c?auto=format&fit=crop&w=800&q=80',
-    'Kích thước lồng chuồng tối thiểu, bánh xe chạy an toàn, lót chuồng khử mùi và chế độ hạt cân bằng cho chuột Hamster.',
-    '## 1. Chuẩn bị chuồng nuôi đạt chuẩn
-Hamster là loài thú cưng nhỏ nhưng có nhu cầu vận động lãnh thổ rất lớn:
-- **Diện tích sàn tối thiểu**: Tối thiểu 50cm x 30cm (tương đương sàn ~2000 cm²). Tuyệt đối tránh các loại lồng mini nhiều tầng hẹp vì dễ làm gãy chân bé.
-- **Bánh xe chạy (Wheel)**: Cần có đường kính tối thiểu 20cm (cho Robo / Winter White) hoặc 28cm (cho Syrian/Bear) để tránh làm cong cột sống của Hamster.
-- **Lót chuồng**: Lót mùn cưa chuyên dụng không bụi, lót giấy nén hoặc cỏ timothy dày từ 5-10cm để bé có thể đào hang theo bản năng tự nhiên.
+    'Lịch tẩy giun và phòng ngừa ve rận định kỳ cho chó mèo',
+    'lich-tay-giun-phong-ngua-ve-ran-dinh-ky',
+    'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?auto=format&fit=crop&w=800&q=80',
+    'Bảo vệ chó mèo khỏi ký sinh trùng đường ruột và ký sinh trùng ngoài da: ve, bọ chét, giun tim.',
+    '## 1. Vì sao phải tẩy giun định kỳ?
+Ký sinh trùng đường ruột (giun đũa, giun móc, giun tóc, sán dây) không chỉ hút chất dinh dưỡng khiến thú cưng gầy yếu, xơ xác mà còn có thể lây sang người, đặc biệt là trẻ nhỏ.
 
-## 2. Thức ăn và nước uống
-- **Hạt trộn đa dạng**: Ngũ cốc, hạt kê, hạt lanh, yến mạch, sấy củ quả. Hạn chế hạt hướng dương vì nhiều dầu dễ gây béo phì.
-- **Bình nước bi treo**: Thay nước sạch mỗi ngày. Tuyệt đối không cho uống nước trong chén vì bé dễ làm đổ gây ướt lông và cảm lạnh.',
-    'hamster',
-    'https://www.rspca.org.uk/adviceandwelfare/pets/rodents/hamsters',
-    'RSPCA UK Pet Care',
+## 2. Lịch tẩy giun khuyến nghị bởi bác sĩ thú y
+- **Chó mèo con (dưới 6 tháng tuổi)**: Tẩy giun lần đầu lúc 2-3 tuần tuổi, sau đó nhắc lại mỗi 2 tuần một lần cho đến khi được 3 tháng tuổi. Từ 3-6 tháng tuổi: tẩy 1 tháng/lần.
+- **Chó mèo trưởng thành (trên 6 tháng tuổi)**: Tẩy giun định kỳ mỗi 3 tháng một lần (hoặc mỗi tháng nếu bé hay đi dạo ngoài trời và ăn thịt sống).
+
+## 3. Phòng ngừa ve rận và giun tim
+- Sử dụng thuốc nhỏ gáy hoặc viên nhai định kỳ mỗi 1 - 3 tháng tùy loại thuốc (như Bravecto, Nexgard, Revolution).
+- Vệ sinh sạch sẽ môi trường sống, giặt đệm ngủ của thú cưng thường xuyên.',
+    'all',
+    'https://vcahospitals.com/know-your-pet/deworming-in-dogs',
+    'VCA Animal Hospitals',
     'published',
-    67
+    110
 ),
 (
     'a6666666-6666-6666-6666-666666666666',
-    'c4444444-4444-4444-4444-444444444444',
-    'Hướng dẫn chăm sóc chim cảnh trong mùa thay đổi thời tiết',
-    'huong-dan-cham-soc-chim-canh-khoe-manh',
-    'https://images.unsplash.com/photo-1552728089-57bdde30beb3?auto=format&fit=crop&w=800&q=80',
-    'Giữ ấm lồng chim, phòng tránh gió lùa và cân bằng khoáng chất vitamin giúp chim luôn hót vang, lông bóng.',
-    '## 1. Vị trí đặt lồng và nhiệt độ môi trường
-Hệ hô hấp của chim cảnh rất nhạy cảm với sự thay đổi của thời tiết và luồng gió:
-- **Tránh gió lùa**: Treo lồng ở nơi thoáng đãng, nhiều ánh sáng tự nhiên buổi sáng nhưng tuyệt đối tránh luồng gió lùa trực tiếp hoặc máy lạnh phả vào.
-- **Ánh nắng ban mai**: Cho chim tắm nắng 15-20 phút vào buổi sáng sớm (trước 8h30) để cơ thể tự tổng hợp Vitamin D3 giúp hấp thụ canxi tốt hơn.
-- **Áo trùm lồng**: Vào ban đêm hoặc mùa lạnh, cần trùm 3/4 áo lồng để giữ ấm và tránh các loài côn trùng, chuột gây hoảng loạn.
+    'c3333333-3333-3333-3333-333333333333',
+    'Dấu hiệu nhận biết và cách phòng bệnh giảm bạch cầu ở mèo (FPV)',
+    'phong-benh-giam-bach-cau-o-meo-fpv',
+    'https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=800&q=80',
+    'Bệnh Feline Panleukopenia cực kỳ nguy hiểm ở mèo con với tỷ lệ tử vong cao. Hướng dẫn nhận biết sớm và phác đồ tiêm ngừa.',
+    '## 1. Bệnh giảm bạch cầu (FPV) là gì?
+Feline Panleukopenia Virus (FPV) là bệnh truyền nhiễm cấp tính do parvovirus ở mèo gây ra. Virus tấn công các tế bào phân chia nhanh trong tủy xương và niêm mạc ruột, làm suy giảm nghiêm trọng lượng bạch cầu trong máu.
 
-## 2. Dinh dưỡng đa dạng
-- Ngoài cám chim chất lượng, cần bổ sung rau xanh tươi (xà lách, rau muống non) và hoa quả chín (táo, chuối).
-- Treo nang mực hoặc khoáng vi lượng trong lồng để chim mài mỏ và bổ sung canxi giúp xương mỏ chắc khỏe.',
-    'bird',
-    'https://vcahospitals.com/know-your-pet/general-care-of-pet-birds',
-    'VCA Animal Hospitals',
+## 2. Các triệu chứng điển hình
+- **Sốt cao đột ngột**, sau đó thân nhiệt hạ nhanh.
+- **Nôn mửa liên tục** (chất nôn có màu vàng bọt).
+- **Tiêu chảy phân lỏng**, có mùi tanh khắm đặc trưng hoặc lẫn máu.
+- Mèo ủ rũ, bỏ ăn hoàn toàn, thường ngồi cúi gục đầu trước bát nước nhưng không uống.
+
+## 3. Cách phòng ngừa hiệu quả nhất
+- **Tiêm phòng vắc-xin cốt lõi (Core Vaccine - Mũi 4 bệnh mèo)**: Mũi đầu tiên lúc 8 tuần tuổi, nhắc lại sau 3-4 tuần cho đến khi đủ 16 tuần tuổi, sau đó tiêm nhắc hằng năm.
+- **Cách ly mèo mới đón về** tối thiểu 10-14 ngày trước khi cho tiếp xúc với đàn mèo cũ.',
+    'cat',
+    'https://www.vet.cornell.edu/departments-centers-and-institutes/cornell-feline-health-center/health-information/feline-health-topics/feline-panleukopenia',
+    'Cornell Feline Health Center',
     'published',
-    53
+    175
 )
 ON CONFLICT (slug) DO NOTHING;
+ON CONFLICT (slug) DO NOTHING;
+

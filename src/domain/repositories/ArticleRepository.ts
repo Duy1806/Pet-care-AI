@@ -51,3 +51,4 @@ export interface ArticleRepository {
   /** Admin facing: Create a new category */
   createCategory(name: string, icon?: string): Promise<BlogCategory>;
 }
+
