@@ -182,6 +182,40 @@ const MIGRATIONS: Record<number, string> = {
       last_synced_at TEXT,
       local_updated_at TEXT NOT NULL
     );
+
+    -- 11. Blog Categories (Local Cache)
+    CREATE TABLE IF NOT EXISTS blog_categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      icon TEXT,
+      description TEXT,
+      sort_order INTEGER DEFAULT 0
+    );
+
+    -- 12. Articles (Local Cache)
+    CREATE TABLE IF NOT EXISTS articles (
+      id TEXT PRIMARY KEY,
+      author_id TEXT,
+      category_id TEXT,
+      category_name TEXT,
+      title TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      cover_image_url TEXT,
+      excerpt TEXT NOT NULL,
+      content TEXT NOT NULL,
+      target_species TEXT NOT NULL DEFAULT 'all',
+      source_url TEXT,
+      source_name TEXT,
+      status TEXT NOT NULL DEFAULT 'published',
+      views_count INTEGER NOT NULL DEFAULT 0,
+      published_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_local_articles_species ON articles(target_species);
+    CREATE INDEX IF NOT EXISTS idx_local_articles_cat ON articles(category_id);
   `,
 };
 

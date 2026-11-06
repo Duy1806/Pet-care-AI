@@ -9,6 +9,7 @@ import { InMemoryPetRepository } from '../data/repositories/InMemoryPetRepositor
 import { PetRepositorySupabase } from '../data/repositories/PetRepositorySupabase';
 import { BreedRepositorySupabase } from '../data/repositories/BreedRepositorySupabase';
 import { VaccinationRepositorySupabase } from '../data/repositories/VaccinationRepositorySupabase';
+import { ArticleRepositorySupabase, articleRepository } from '../data/repositories/ArticleRepositorySupabase';
 import type { AuthRepository } from '../domain/repositories/AuthRepository';
 import type { PetRepository } from '../domain/repositories/PetRepository';
 import type { BreedRepository } from '../domain/repositories/BreedRepository';
@@ -62,4 +63,4 @@ export const restoreSessionUseCase = new RestoreSessionUseCase(authRepository);
 export const getPets = new GetPets(petRepository);
 
 // Export repository instances for direct access where needed
-export { authRepository, petRepository, breedRepository, vaccinationRepository };
+export { authRepository, petRepository, breedRepository, vaccinationRepository, articleRepository };

@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -27,6 +28,8 @@ import * as Haptics from 'expo-haptics';
 
 import { useAppTheme } from '@/presentation/theme';
 import { useAuthStore } from '@/presentation/stores/useAuthStore';
+import { useArticleStore } from '@/presentation/stores/useArticleStore';
+import type { Article, ArticleStatus, TargetSpecies } from '@/domain/entities/Article';
 import {
   adminRepo,
   type AdminPetItem,
@@ -35,7 +38,7 @@ import {
   type AdminVaccinationItem,
 } from '@/data/repositories/AdminRepository';
 
-type AdminTab = 'overview' | 'users' | 'pets' | 'vaccinations';
+type AdminTab = 'overview' | 'articles' | 'users' | 'pets' | 'vaccinations';
 
 export default function AdminScreen() {
   const { colors, typography: typo, spacing, radius } = useAppTheme();
@@ -60,6 +63,41 @@ export default function AdminScreen() {
   const [petsList, setPetsList] = useState<AdminPetItem[]>([]);
   const [vaccinationsList, setVaccinationsList] = useState<AdminVaccinationItem[]>([]);
 
+  // Article store integration
+  const {
+    adminArticles,
+    categories,
+    loadAdminArticles,
+    loadCategories,
+    createArticle,
+    updateArticle,
+    deleteArticle,
+    toggleStatus,
+    createCategory,
+  } = useArticleStore();
+
+  const [articleStatusFilter, setArticleStatusFilter] = useState<'all' | 'published' | 'draft' | 'hidden'>('all');
+  const [searchArticleText, setSearchArticleText] = useState('');
+
+  // Article Modal States
+  const [isArticleModalVisible, setIsArticleModalVisible] = useState(false);
+  const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+  const [formTitle, setFormTitle] = useState('');
+  const [formCategoryId, setFormCategoryId] = useState<string>('');
+  const [formSpecies, setFormSpecies] = useState<TargetSpecies>('all');
+  const [formCoverUrl, setFormCoverUrl] = useState('');
+  const [formExcerpt, setFormExcerpt] = useState('');
+  const [formContent, setFormContent] = useState('');
+  const [formSourceName, setFormSourceName] = useState('');
+  const [formSourceUrl, setFormSourceUrl] = useState('');
+  const [formStatus, setFormStatus] = useState<ArticleStatus>('published');
+  const [isSavingArticle, setIsSavingArticle] = useState(false);
+
+  // Category Modal State
+  const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
+
   // Search & filter states
   const [searchUserText, setSearchUserText] = useState('');
   const [searchPetText, setSearchPetText] = useState('');
@@ -75,6 +113,8 @@ export default function AdminScreen() {
         adminRepo.getAllUsers(),
         adminRepo.getAllPets(),
         adminRepo.getAllVaccinations(),
+        loadAdminArticles(),
+        loadCategories(),
       ]);
 
       setStats(newStats);
@@ -87,7 +127,7 @@ export default function AdminScreen() {
       setIsLoadingData(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [loadAdminArticles, loadCategories]);
 
   useEffect(() => {
     void loadAdminData();
@@ -99,7 +139,135 @@ export default function AdminScreen() {
     void loadAdminData();
   };
 
-  // Toggle user role
+  // Filtered articles
+  const filteredArticles = useMemo(() => {
+    return adminArticles.filter((art) => {
+      if (articleStatusFilter !== 'all' && art.status !== articleStatusFilter) return false;
+      if (searchArticleText.trim()) {
+        const query = searchArticleText.toLowerCase();
+        return (
+          art.title.toLowerCase().includes(query) ||
+          art.excerpt.toLowerCase().includes(query) ||
+          (art.categoryName && art.categoryName.toLowerCase().includes(query))
+        );
+      }
+      return true;
+    });
+  }, [adminArticles, articleStatusFilter, searchArticleText]);
+
+  const openCreateArticleModal = () => {
+    setEditingArticle(null);
+    setFormTitle('');
+    setFormCategoryId(categories[0]?.id || '');
+    setFormSpecies('all');
+    setFormCoverUrl('');
+    setFormExcerpt('');
+    setFormContent('');
+    setFormSourceName('');
+    setFormSourceUrl('');
+    setFormStatus('published');
+    setIsArticleModalVisible(true);
+  };
+
+  const openEditArticleModal = (art: Article) => {
+    setEditingArticle(art);
+    setFormTitle(art.title);
+    setFormCategoryId(art.categoryId || '');
+    setFormSpecies(art.targetSpecies);
+    setFormCoverUrl(art.coverImageUrl || '');
+    setFormExcerpt(art.excerpt);
+    setFormContent(art.content);
+    setFormSourceName(art.sourceName || '');
+    setFormSourceUrl(art.sourceUrl || '');
+    setFormStatus(art.status);
+    setIsArticleModalVisible(true);
+  };
+
+  const handleSaveArticle = async () => {
+    if (!formTitle.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập tiêu đề bài viết.');
+      return;
+    }
+    if (!formExcerpt.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập mô tả ngắn tóm tắt.');
+      return;
+    }
+    if (!formContent.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập nội dung chi tiết bài viết.');
+      return;
+    }
+
+    setIsSavingArticle(true);
+    try {
+      if (editingArticle) {
+        await updateArticle(editingArticle.id, {
+          title: formTitle.trim(),
+          categoryId: formCategoryId || null,
+          targetSpecies: formSpecies,
+          coverImageUrl: formCoverUrl.trim() || null,
+          excerpt: formExcerpt.trim(),
+          content: formContent.trim(),
+          sourceName: formSourceName.trim() || null,
+          sourceUrl: formSourceUrl.trim() || null,
+          status: formStatus,
+        });
+        Alert.alert('Thành công', 'Đã cập nhật bài viết thành công!');
+      } else {
+        await createArticle({
+          title: formTitle.trim(),
+          categoryId: formCategoryId || null,
+          targetSpecies: formSpecies,
+          coverImageUrl: formCoverUrl.trim() || null,
+          excerpt: formExcerpt.trim(),
+          content: formContent.trim(),
+          sourceName: formSourceName.trim() || null,
+          sourceUrl: formSourceUrl.trim() || null,
+          status: formStatus,
+        });
+        Alert.alert('Thành công', 'Đã thêm bài viết mới vào hệ thống!');
+      }
+      setIsArticleModalVisible(false);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err: any) {
+      Alert.alert('Lỗi lưu bài viết', err?.message || 'Không thể lưu bài viết. Vui lòng kiểm tra quyền Admin.');
+    } finally {
+      setIsSavingArticle(false);
+    }
+  };
+
+  const handleDeleteArticle = (art: Article) => {
+    Alert.alert(
+      'Xác nhận xóa bài viết',
+      `Bạn có chắc chắn muốn xóa bài viết:\n"${art.title}"?`,
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa bài',
+          style: 'destructive',
+          onPress: async () => {
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            try {
+              await deleteArticle(art.id);
+              Alert.alert('Đã xóa', 'Bài viết đã được gỡ bỏ khỏi hệ thống.');
+            } catch (err: any) {
+              Alert.alert('Không thể xóa', err?.message || 'Có lỗi xảy ra khi xóa bài viết.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleToggleArticleStatus = async (art: Article) => {
+    const nextStatus: ArticleStatus = art.status === 'published' ? 'hidden' : 'published';
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await toggleStatus(art.id, nextStatus);
+    } catch (err: any) {
+      Alert.alert('Lỗi', err?.message || 'Không thể đổi trạng thái bài viết.');
+    }
+  };
+
   const handleToggleUserRole = (targetUser: AdminUserItem) => {
     const nextRole = targetUser.role === 'admin' ? 'owner' : 'admin';
     const roleLabel = nextRole === 'admin' ? 'Quản trị viên (Admin)' : 'Chủ nuôi tiêu chuẩn (Owner)';
@@ -126,6 +294,24 @@ export default function AdminScreen() {
         },
       ]
     );
+  };
+
+  const handleSaveCategory = async () => {
+    if (!newCategoryName.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập tên danh mục.');
+      return;
+    }
+    setIsSavingCategory(true);
+    try {
+      await createCategory(newCategoryName.trim());
+      setNewCategoryName('');
+      setIsCategoryModalVisible(false);
+      Alert.alert('Thành công', 'Đã thêm danh mục bài viết mới!');
+    } catch (err: any) {
+      Alert.alert('Lỗi', err?.message || 'Không thể tạo danh mục mới.');
+    } finally {
+      setIsSavingCategory(false);
+    }
   };
 
   const handleAdminLogout = () => {
@@ -232,11 +418,12 @@ export default function AdminScreen() {
         </View>
       </View>
 
-      {/* 4 Tabs Selector */}
+      {/* 5 Tabs Selector */}
       <View style={[styles.tabBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
           {[
             { key: 'overview', label: 'Tổng quan', icon: 'view-dashboard-outline' },
+            { key: 'articles', label: `Bài viết (${adminArticles.length})`, icon: 'book-open-page-variant-outline' },
             { key: 'users', label: `Người dùng (${usersList.length})`, icon: 'account-group-outline' },
             { key: 'pets', label: `Thú cưng (${petsList.length})`, icon: 'paw-outline' },
             { key: 'vaccinations', label: `Sổ tiêm (${vaccinationsList.length})`, icon: 'needle' },
@@ -467,6 +654,264 @@ export default function AdminScreen() {
                   </View>
                 </View>
               </View>
+            </View>
+          )}
+
+          {/* TAB: ARTICLE & KNOWLEDGE MANAGEMENT */}
+          {activeTab === 'articles' && (
+            <View style={{ gap: spacing.md }}>
+              {/* Header Action Buttons */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    openCreateArticleModal();
+                  }}
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.primary,
+                    paddingVertical: 12,
+                    borderRadius: radius.md,
+                    gap: 6,
+                  }}
+                >
+                  <MaterialCommunityIcons name="pencil-plus" size={18} color="#FFF" />
+                  <Text style={[typo.labelLarge, { color: '#FFF', fontWeight: '700' }]}>
+                    Thêm bài viết mới
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setIsCategoryModalVisible(true);
+                  }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    borderRadius: radius.md,
+                    gap: 6,
+                  }}
+                >
+                  <MaterialCommunityIcons name="folder-plus-outline" size={18} color={colors.text} />
+                  <Text style={[typo.labelMedium, { color: colors.text, fontWeight: '600' }]}>
+                    + Danh mục ({categories.length})
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Search Bar */}
+              <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
+                <TextInput
+                  value={searchArticleText}
+                  onChangeText={setSearchArticleText}
+                  placeholder="Tìm kiếm bài viết theo tiêu đề, danh mục..."
+                  placeholderTextColor={colors.textTertiary}
+                  style={[styles.searchInput, typo.bodySmall, { color: colors.text }]}
+                />
+                {searchArticleText.length > 0 && (
+                  <Pressable onPress={() => setSearchArticleText('')}>
+                    <MaterialCommunityIcons name="close-circle" size={18} color={colors.textTertiary} />
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Status Filter Chips */}
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                {[
+                  { key: 'all', label: `Tất cả (${adminArticles.length})` },
+                  { key: 'published', label: `Đã xuất bản (${adminArticles.filter((a) => a.status === 'published').length})` },
+                  { key: 'draft', label: `Bản nháp (${adminArticles.filter((a) => a.status === 'draft').length})` },
+                  { key: 'hidden', label: `Đã ẩn (${adminArticles.filter((a) => a.status === 'hidden').length})` },
+                ].map((item) => {
+                  const isSel = articleStatusFilter === item.key;
+                  return (
+                    <Pressable
+                      key={item.key}
+                      onPress={() => {
+                        void Haptics.selectionAsync();
+                        setArticleStatusFilter(item.key as any);
+                      }}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: radius.md,
+                        backgroundColor: isSel ? colors.primary : colors.surface,
+                        borderColor: isSel ? colors.primary : colors.border,
+                        borderWidth: 1,
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.textSecondary }}>
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Article List */}
+              {filteredArticles.length === 0 ? (
+                <View style={[styles.emptyContainer, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.lg, padding: 24 }]}>
+                  <MaterialCommunityIcons name="book-open-outline" size={48} color={colors.textTertiary} />
+                  <Text style={[typo.titleSmall, { color: colors.text, marginTop: 8, fontWeight: '700' }]}>
+                    Chưa có bài viết nào
+                  </Text>
+                  <Text style={[typo.caption, { color: colors.textSecondary, marginTop: 4, textAlign: 'center' }]}>
+                    Bấm nút "Thêm bài viết mới" phía trên để soạn thảo và xuất bản kiến thức cho cộng đồng.
+                  </Text>
+                </View>
+              ) : (
+                filteredArticles.map((art) => {
+                  const isPublished = art.status === 'published';
+                  const isDraft = art.status === 'draft';
+                  const statusBg = isPublished ? '#DCFCE7' : isDraft ? '#F1F5F9' : '#FEF3C7';
+                  const statusColor = isPublished ? '#15803D' : isDraft ? '#64748B' : '#B45309';
+                  const statusLabel = isPublished ? 'Đã xuất bản' : isDraft ? 'Bản nháp' : 'Đã ẩn';
+
+                  return (
+                    <View
+                      key={art.id}
+                      style={{
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        borderWidth: 1,
+                        borderRadius: radius.lg,
+                        padding: 14,
+                        gap: 10,
+                      }}
+                    >
+                      {/* Top Row: Badges */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
+                          <View style={{ backgroundColor: statusBg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '800', color: statusColor }}>
+                              {statusLabel}
+                            </Text>
+                          </View>
+
+                          <View style={{ backgroundColor: '#E0F2FE', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#0284C7' }}>
+                              {art.targetSpecies === 'all' ? 'Tất cả' : art.targetSpecies === 'dog' ? 'Chó' : art.targetSpecies === 'cat' ? 'Mèo' : art.targetSpecies}
+                            </Text>
+                          </View>
+
+                          {Boolean(art.categoryName) && (
+                            <Text style={[typo.caption, { color: colors.textSecondary, fontWeight: '600' }]} numberOfLines={1}>
+                              {art.categoryName}
+                            </Text>
+                          )}
+                        </View>
+
+                        <Text style={[typo.caption, { color: colors.textTertiary }]}>
+                          👁️ {art.viewsCount}
+                        </Text>
+                      </View>
+
+                      {/* Content Row: Thumbnail & Title/Excerpt */}
+                      <View style={{ flexDirection: 'row', gap: 10 }}>
+                        {Boolean(art.coverImageUrl) && (
+                          <Image
+                            source={{ uri: art.coverImageUrl! }}
+                            style={{ width: 68, height: 68, borderRadius: 8, backgroundColor: '#E2E8F0' }}
+                          />
+                        )}
+                        <View style={{ flex: 1, justifyContent: 'center' }}>
+                          <Text style={[typo.titleSmall, { color: colors.text, fontWeight: '700' }]} numberOfLines={2}>
+                            {art.title}
+                          </Text>
+                          <Text style={[typo.bodySmall, { color: colors.textSecondary, marginTop: 4 }]} numberOfLines={2}>
+                            {art.excerpt}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Source & Date info */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
+                        <Text style={[typo.caption, { color: colors.textTertiary }]}>
+                          {art.sourceName ? `Nguồn: ${art.sourceName}` : 'Tác giả: Admin'}
+                        </Text>
+                        <Text style={[typo.caption, { color: colors.textTertiary }]}>
+                          {art.publishedAt ? art.publishedAt.split('T')[0] : art.createdAt.split('T')[0]}
+                        </Text>
+                      </View>
+
+                      {/* Actions: Sửa, Ẩn/Hiện, Xóa */}
+                      <View style={{ flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
+                        <Pressable
+                          onPress={() => openEditArticleModal(art)}
+                          style={{
+                            flex: 1,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: colors.surfaceElevated,
+                            paddingVertical: 8,
+                            borderRadius: radius.md,
+                            gap: 4,
+                          }}
+                        >
+                          <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.primary} />
+                          <Text style={[typo.labelSmall, { color: colors.primary, fontWeight: '700' }]}>
+                            Sửa
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => handleToggleArticleStatus(art)}
+                          style={{
+                            flex: 1,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: colors.surfaceElevated,
+                            paddingVertical: 8,
+                            borderRadius: radius.md,
+                            gap: 4,
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name={isPublished ? 'eye-off-outline' : 'eye-outline'}
+                            size={15}
+                            color={isPublished ? '#D97706' : '#16A34A'}
+                          />
+                          <Text
+                            style={[
+                              typo.labelSmall,
+                              { color: isPublished ? '#D97706' : '#16A34A', fontWeight: '700' },
+                            ]}
+                          >
+                            {isPublished ? 'Ẩn bài' : 'Xuất bản'}
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => handleDeleteArticle(art)}
+                          style={{
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            backgroundColor: '#FEE2E2',
+                            borderRadius: radius.md,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <MaterialCommunityIcons name="trash-can-outline" size={16} color="#DC2626" />
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
             </View>
           )}
 
@@ -829,6 +1274,309 @@ export default function AdminScreen() {
           )}
         </ScrollView>
       )}
+
+      {/* MODAL 1: ADD / EDIT ARTICLE */}
+      <Modal
+        visible={isArticleModalVisible}
+        animationType="slide"
+        onRequestClose={() => setIsArticleModalVisible(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top', 'bottom']}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <Pressable onPress={() => setIsArticleModalVisible(false)} hitSlop={8}>
+              <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+            </Pressable>
+            <Text style={[typo.titleMedium, { color: colors.text, fontWeight: '800' }]}>
+              {editingArticle ? 'Chỉnh sửa bài viết' : 'Thêm bài viết mới'}
+            </Text>
+            <Pressable
+              onPress={handleSaveArticle}
+              disabled={isSavingArticle}
+              style={{
+                backgroundColor: colors.primary,
+                paddingHorizontal: 14,
+                paddingVertical: 7,
+                borderRadius: radius.md,
+              }}
+            >
+              {isSavingArticle ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 13 }}>Lưu</Text>
+              )}
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+            {/* Title */}
+            <View>
+              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4, fontWeight: '700' }]}>
+                Tiêu đề bài viết *
+              </Text>
+              <TextInput
+                value={formTitle}
+                onChangeText={setFormTitle}
+                placeholder="Ví dụ: Hướng dẫn tắm cho chó đúng cách"
+                placeholderTextColor={colors.textTertiary}
+                style={[styles.modalInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+              />
+            </View>
+
+            {/* Category Picker */}
+            <View>
+              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4, fontWeight: '700' }]}>
+                Danh mục bài viết
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {categories.map((c) => {
+                  const isSel = formCategoryId === c.id;
+                  return (
+                    <Pressable
+                      key={c.id}
+                      onPress={() => setFormCategoryId(c.id)}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 7,
+                        borderRadius: radius.md,
+                        backgroundColor: isSel ? colors.primary : colors.surface,
+                        borderColor: isSel ? colors.primary : colors.border,
+                        borderWidth: 1,
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.text }}>
+                        {c.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {/* Target Species Picker */}
+            <View>
+              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4, fontWeight: '700' }]}>
+                Đối tượng thú cưng áp dụng
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {[
+                  { key: 'all', label: 'Tất cả thú cưng' },
+                  { key: 'dog', label: 'Chó' },
+                  { key: 'cat', label: 'Mèo' },
+                  { key: 'bird', label: 'Chim cảnh' },
+                  { key: 'hamster', label: 'Hamster' },
+                  { key: 'rabbit', label: 'Thỏ' },
+                ].map((s) => {
+                  const isSel = formSpecies === s.key;
+                  return (
+                    <Pressable
+                      key={s.key}
+                      onPress={() => setFormSpecies(s.key as TargetSpecies)}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 7,
+                        borderRadius: radius.md,
+                        backgroundColor: isSel ? '#0284C7' : colors.surface,
+                        borderColor: isSel ? '#0284C7' : colors.border,
+                        borderWidth: 1,
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: isSel ? '700' : '500', color: isSel ? '#FFF' : colors.text }}>
+                        {s.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Cover Image URL */}
+            <View>
+              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4, fontWeight: '700' }]}>
+                Đường dẫn ảnh bìa (Cover Image URL)
+              </Text>
+              <TextInput
+                value={formCoverUrl}
+                onChangeText={setFormCoverUrl}
+                placeholder="https://images.unsplash.com/..."
+                placeholderTextColor={colors.textTertiary}
+                style={[styles.modalInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+              />
+              {Boolean(formCoverUrl) && (
+                <Image
+                  source={{ uri: formCoverUrl }}
+                  style={{ width: '100%', height: 140, borderRadius: 8, marginTop: 8 }}
+                  resizeMode="cover"
+                />
+              )}
+            </View>
+
+            {/* Excerpt */}
+            <View>
+              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4, fontWeight: '700' }]}>
+                Mô tả ngắn (Tóm tắt 1-2 câu) *
+              </Text>
+              <TextInput
+                value={formExcerpt}
+                onChangeText={setFormExcerpt}
+                placeholder="Tóm tắt ngắn gọn nội dung bài viết hiển thị ở danh sách..."
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                numberOfLines={2}
+                style={[styles.modalInput, { height: 64, backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+              />
+            </View>
+
+            {/* Full Content */}
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={[typo.labelMedium, { color: colors.text, fontWeight: '700' }]}>
+                  Nội dung chi tiết bài viết *
+                </Text>
+                <Text style={[typo.caption, { color: colors.primary }]}>
+                  Hỗ trợ ## tiêu đề, - gạch đầu dòng, &gt; lưu ý
+                </Text>
+              </View>
+              <TextInput
+                value={formContent}
+                onChangeText={setFormContent}
+                placeholder="Soạn thảo nội dung bài viết tại đây. Sử dụng ## Tiêu đề mục lớn, - gạch đầu dòng, > Lời khuyên thú y..."
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                numberOfLines={10}
+                style={[styles.modalInput, { height: 200, backgroundColor: colors.surface, borderColor: colors.border, color: colors.text, textAlignVertical: 'top' }]}
+              />
+            </View>
+
+            {/* Source Reference: Website Name & URL */}
+            <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 12, gap: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <MaterialCommunityIcons name="shield-check-outline" size={18} color={colors.primary} />
+                <Text style={[typo.labelMedium, { color: colors.text, fontWeight: '700' }]}>
+                  Nguồn tham khảo & Tôn trọng bản quyền
+                </Text>
+              </View>
+
+              <View>
+                <Text style={[typo.caption, { color: colors.textSecondary, marginBottom: 4 }]}>
+                  Tên website hoặc tác giả nguồn
+                </Text>
+                <TextInput
+                  value={formSourceName}
+                  onChangeText={setFormSourceName}
+                  placeholder="Ví dụ: American Kennel Club (AKC), PetMD, Bệnh viện thú y..."
+                  placeholderTextColor={colors.textTertiary}
+                  style={[styles.modalInput, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, color: colors.text }]}
+                />
+              </View>
+
+              <View>
+                <Text style={[typo.caption, { color: colors.textSecondary, marginBottom: 4 }]}>
+                  Đường dẫn liên kết URL nguồn gốc
+                </Text>
+                <TextInput
+                  value={formSourceUrl}
+                  onChangeText={setFormSourceUrl}
+                  placeholder="https://..."
+                  placeholderTextColor={colors.textTertiary}
+                  style={[styles.modalInput, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, color: colors.text }]}
+                />
+              </View>
+            </View>
+
+            {/* Status Selector */}
+            <View>
+              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 4, fontWeight: '700' }]}>
+                Trạng thái đăng bài
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {[
+                  { key: 'published', label: '✅ Xuất bản ngay', color: '#16A34A' },
+                  { key: 'draft', label: '📝 Bản nháp', color: '#64748B' },
+                  { key: 'hidden', label: '🔒 Tạm ẩn', color: '#D97706' },
+                ].map((st) => {
+                  const isSel = formStatus === st.key;
+                  return (
+                    <Pressable
+                      key={st.key}
+                      onPress={() => setFormStatus(st.key as ArticleStatus)}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: radius.md,
+                        backgroundColor: isSel ? colors.surfaceElevated : colors.surface,
+                        borderColor: isSel ? st.color : colors.border,
+                        borderWidth: isSel ? 2 : 1,
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: isSel ? '700' : '500', color: isSel ? st.color : colors.textSecondary }}>
+                        {st.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* MODAL 2: ADD CATEGORY */}
+      <Modal
+        visible={isCategoryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsCategoryModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.categoryDialog, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.lg }]}>
+            <Text style={[typo.titleMedium, { color: colors.text, fontWeight: '800', marginBottom: 12 }]}>
+              Thêm danh mục bài viết mới
+            </Text>
+
+            <Text style={[typo.caption, { color: colors.textSecondary, marginBottom: 6 }]}>
+              Tên danh mục (ví dụ: Chăm sóc răng miệng, Đồ chơi & Phụ kiện)
+            </Text>
+            <TextInput
+              value={newCategoryName}
+              onChangeText={setNewCategoryName}
+              placeholder="Nhập tên danh mục..."
+              placeholderTextColor={colors.textTertiary}
+              style={[styles.modalInput, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, color: colors.text, marginBottom: 16 }]}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'flex-end' }}>
+              <Pressable
+                onPress={() => {
+                  setNewCategoryName('');
+                  setIsCategoryModalVisible(false);
+                }}
+                style={{ paddingVertical: 8, paddingHorizontal: 14 }}
+              >
+                <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Hủy</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleSaveCategory}
+                disabled={isSavingCategory}
+                style={{
+                  backgroundColor: colors.primary,
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: radius.md,
+                }}
+              >
+                {isSavingCategory ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={{ color: '#FFF', fontWeight: '700' }}>Lưu danh mục</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1062,5 +1810,40 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     marginTop: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  categoryDialog: {
+    width: '100%',
+    maxWidth: 400,
+    padding: 20,
+    borderWidth: 1,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    borderWidth: 1,
   },
 });

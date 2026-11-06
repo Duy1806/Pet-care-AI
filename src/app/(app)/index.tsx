@@ -650,6 +650,53 @@ export default function HomeScreen() {
               </Text>
             </Pressable>
           </View>
+
+          {/* Banner Kiến thức thú cưng & PetCare Blog */}
+          <Pressable
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push('/blog' as any);
+            }}
+            style={[
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+                borderWidth: 1,
+                borderRadius: radius.lg,
+                marginTop: spacing.md,
+                padding: spacing.md,
+                flexDirection: 'row',
+                alignItems: 'center',
+              },
+            ]}
+          >
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                backgroundColor: '#EDE9FE',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <MaterialCommunityIcons name="book-open-page-variant" size={24} color="#7C3AED" />
+            </View>
+            <View style={{ flex: 1, marginLeft: spacing.md }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[typo.titleSmall, { color: colors.text, fontWeight: '700' }]}>
+                  Kiến thức thú cưng
+                </Text>
+                <View style={{ backgroundColor: '#7C3AED', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                  <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700' }}>BLOG</Text>
+                </View>
+              </View>
+              <Text style={[typo.bodySmall, { color: colors.textSecondary, marginTop: 2 }]} numberOfLines={1}>
+                Cẩm nang dinh dưỡng, vệ sinh & phòng bệnh chuẩn thú y
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={colors.textTertiary} />
+          </Pressable>
         </View>
 
         {/* Section 3: Today's Care Reminders Checklist */}

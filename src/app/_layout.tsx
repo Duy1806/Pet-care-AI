@@ -208,6 +208,18 @@ function RootNavigator() {
           }}
         />
         <Stack.Screen
+          name="blog"
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="article-detail"
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
           name="admin"
           options={{
             animation: 'slide_from_right',
