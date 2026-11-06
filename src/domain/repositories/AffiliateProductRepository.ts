@@ -40,3 +40,4 @@ export interface AffiliateProductRepository {
   linkProductsToArticle(articleId: string, productIds: string[]): Promise<void>;
   getProductArticleIds(productId: string): Promise<string[]>;
 }
+

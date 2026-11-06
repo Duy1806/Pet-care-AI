@@ -111,7 +111,7 @@ INSERT INTO public.affiliate_products (
     id, name, slug, description, image_url, price, category_id, pet_type, merchant_name, affiliate_url, status
 ) VALUES
 (
-    'p1111111-1111-1111-1111-111111111111',
+    'b1111111-1111-1111-1111-111111111111',
     'Sữa tắm thú cưng Joyce & Dolls hương hoa thơm lâu',
     'sua-tam-joyce-dolls',
     'Dòng sữa tắm cao cấp dịu nhẹ, cân bằng độ pH da thú cưng, giữ hương thơm dễ chịu suốt 5-7 ngày và phòng ngừa nấm ngứa.',
@@ -124,7 +124,7 @@ INSERT INTO public.affiliate_products (
     'active'
 ),
 (
-    'p2222222-2222-2222-2222-222222222222',
+    'b2222222-2222-2222-2222-222222222222',
     'Dung dịch vệ sinh tai cho chó mèo Epi-Otic Virbac (125ml)',
     'dung-dich-ve-sinh-tai-epi-otic',
     'Dung dịch rửa tai thú y hàng đầu giúp tan ráy tai, làm sạch sâu, khử mùi hôi và phòng ngừa viêm tai, rận tai hiệu quả.',
@@ -137,7 +137,7 @@ INSERT INTO public.affiliate_products (
     'active'
 ),
 (
-    'p3333333-3333-3333-3333-333333333333',
+    'b3333333-3333-3333-3333-333333333333',
     'Lược chải lông tự động nhả lông thông minh',
     'luoc-chai-long-thong-minh',
     'Thiết kế nút bấm thu gọn răng lược, dễ dàng gỡ bỏ toàn bộ lông rối chỉ trong 1 giây, đầu chải bọc bi massage không gây xước da.',
@@ -150,7 +150,7 @@ INSERT INTO public.affiliate_products (
     'active'
 ),
 (
-    'p4444444-4444-4444-4444-444444444444',
+    'b4444444-4444-4444-4444-444444444444',
     'Hạt dinh dưỡng Royal Canin dành cho Chó Poodle & Chó nhỏ',
     'hat-royal-canin-mini-adult',
     'Công thức hạt chuẩn dinh dưỡng giúp tăng cường đề kháng, bảo vệ hệ tiêu hóa nhạy cảm và giữ màu lông luôn bóng mượt.',
@@ -163,7 +163,7 @@ INSERT INTO public.affiliate_products (
     'active'
 ),
 (
-    'p5555555-5555-5555-5555-555555555555',
+    'b5555555-5555-5555-5555-555555555555',
     'Pate dinh dưỡng cao cấp Nekko cho mèo (Gói 70g)',
     'pate-nekko-cho-meo',
     'Thịt cá ngừ nguyên chất giàu Omega-3 và Taurine giúp bổ mắt, mượt lông và cung cấp đầy đủ nước cho mèo cưng hàng ngày.',
@@ -182,9 +182,10 @@ ON CONFLICT (slug) DO NOTHING;
 -- ------------------------------------------------------------------------------
 INSERT INTO public.article_products (article_id, product_id)
 VALUES
-    -- Bài hướng dẫn tắm cho chó (a1111111...) gắn sữa tắm (p1111111...) & lược chải lông (p3333333...)
-    ('a1111111-1111-1111-1111-111111111111', 'p1111111-1111-1111-1111-111111111111'),
-    ('a1111111-1111-1111-1111-111111111111', 'p3333333-3333-3333-3333-333333333333'),
-    -- Bài vệ sinh tai cho mèo (a2222222...) gắn nước rửa tai Epi-Otic (p2222222...)
-    ('a2222222-2222-2222-2222-222222222222', 'p2222222-2222-2222-2222-222222222222')
+    -- Bài hướng dẫn tắm cho chó (a1111111...) gắn sữa tắm (b1111111...) & lược chải lông (b3333333...)
+    ('a1111111-1111-1111-1111-111111111111', 'b1111111-1111-1111-1111-111111111111'),
+    ('a1111111-1111-1111-1111-111111111111', 'b3333333-3333-3333-3333-333333333333'),
+    -- Bài vệ sinh tai cho mèo (a2222222...) gắn nước rửa tai Epi-Otic (b2222222...)
+    ('a2222222-2222-2222-2222-222222222222', 'b2222222-2222-2222-2222-222222222222')
 ON CONFLICT DO NOTHING;
+

@@ -61,3 +61,4 @@ export interface UpdateProductInput {
   status?: ProductStatus;
   articleIds?: string[];
 }
+
