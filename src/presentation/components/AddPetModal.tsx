@@ -12,13 +12,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { useAppTheme } from '@/presentation/theme';
-import { AppTextField } from './AppTextField';
 import { PrimaryButton } from './PrimaryButton';
 import { usePetStore } from '@/presentation/stores/usePetStore';
 import type { Species } from '@/domain/entities/Pet';
@@ -198,36 +198,96 @@ export function AddPetModal({ visible, onClose, onSuccess }: AddPetModalProps) {
 
             {/* Name Input */}
             <View style={{ marginTop: spacing.md }}>
-              <AppTextField
-                label="Tên thú cưng *"
-                placeholder="Ví dụ: Milo, Bơ, Miu Miu..."
-                value={name}
-                onChangeText={setName}
-                leftIcon="paw"
-              />
+              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 6, fontWeight: '700' }]}>
+                Tên thú cưng *
+              </Text>
+              <View
+                style={[
+                  styles.fieldContainer,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.border,
+                    borderRadius: radius.md,
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="paw"
+                  size={20}
+                  color={colors.primary}
+                  style={{ marginRight: 10 }}
+                />
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Ví dụ: Milo, Bơ, Miu Miu..."
+                  placeholderTextColor={colors.textTertiary}
+                  style={[styles.fieldInput, { color: colors.text }]}
+                />
+              </View>
             </View>
 
             {/* Breed Input */}
-            <View style={{ marginTop: spacing.xs }}>
-              <AppTextField
-                label="Giống loài"
-                placeholder="Ví dụ: Poodle, Golden, Mèo Mướp..."
-                value={breedName}
-                onChangeText={setBreedName}
-                leftIcon="format-list-bulleted-type"
-              />
+            <View style={{ marginTop: spacing.smd }}>
+              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 6, fontWeight: '700' }]}>
+                Giống loài
+              </Text>
+              <View
+                style={[
+                  styles.fieldContainer,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.border,
+                    borderRadius: radius.md,
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="format-list-bulleted-type"
+                  size={20}
+                  color={colors.primary}
+                  style={{ marginRight: 10 }}
+                />
+                <TextInput
+                  value={breedName}
+                  onChangeText={setBreedName}
+                  placeholder="Ví dụ: Poodle, Golden, Mèo Mướp..."
+                  placeholderTextColor={colors.textTertiary}
+                  style={[styles.fieldInput, { color: colors.text }]}
+                />
+              </View>
             </View>
 
             {/* Weight Input */}
-            <View style={{ marginTop: spacing.xs }}>
-              <AppTextField
-                label="Cân nặng hiện tại (kg) *"
-                placeholder="5.0"
-                value={weightKg}
-                onChangeText={setWeightKg}
-                keyboardType="decimal-pad"
-                leftIcon="scale-bathroom"
-              />
+            <View style={{ marginTop: spacing.smd }}>
+              <Text style={[typo.labelMedium, { color: colors.text, marginBottom: 6, fontWeight: '700' }]}>
+                Cân nặng hiện tại (kg) *
+              </Text>
+              <View
+                style={[
+                  styles.fieldContainer,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.border,
+                    borderRadius: radius.md,
+                  },
+                ]}
+              >
+                <MaterialCommunityIcons
+                  name="scale-bathroom"
+                  size={20}
+                  color={colors.primary}
+                  style={{ marginRight: 10 }}
+                />
+                <TextInput
+                  value={weightKg}
+                  onChangeText={setWeightKg}
+                  placeholder="5.0"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="decimal-pad"
+                  style={[styles.fieldInput, { color: colors.text }]}
+                />
+              </View>
             </View>
 
             {/* Sex & Neutered Row */}
@@ -372,5 +432,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
+  },
+  fieldContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    minHeight: 48,
+  },
+  fieldInput: {
+    flex: 1,
+    fontSize: 15,
+    paddingVertical: 10,
   },
 });
