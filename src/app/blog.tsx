@@ -33,7 +33,7 @@ interface SpeciesTab {
 }
 
 const SPECIES_TABS: SpeciesTab[] = [
-  { id: 'all', label: 'Tất cả (Chó & Mèo)', icon: 'paw' },
+  { id: 'all', label: 'Tất cả', icon: 'paw' },
   { id: 'dog', label: 'Chó cưng', icon: 'dog' },
   { id: 'cat', label: 'Mèo cưng', icon: 'cat' },
 ];

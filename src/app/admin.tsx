@@ -2034,11 +2034,11 @@ export default function AdminScreen() {
               {/* Target Species Picker (Strictly Dog & Cat Only) */}
               <View>
                 <Text style={[typo.labelSmall, { color: colors.text, marginBottom: 3, fontWeight: '700' }]}>
-                  Đối tượng thú cưng áp dụng (Chó & Mèo)
+                  Đối tượng thú cưng áp dụng
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   {[
-                    { key: 'all', label: 'Tất cả (Chó & Mèo)', icon: 'paw' },
+                    { key: 'all', label: 'Tất cả', icon: 'paw' },
                     { key: 'dog', label: 'Chó cưng', icon: 'dog' },
                     { key: 'cat', label: 'Mèo cưng', icon: 'cat' },
                   ].map((s) => {
@@ -2516,11 +2516,11 @@ export default function AdminScreen() {
               {/* Pet Type Target (Strictly Dog & Cat Only) */}
               <View>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 }}>
-                  Loài thú cưng phù hợp (Chó & Mèo)
+                  Loài thú cưng phù hợp
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   {[
-                    { key: 'all', label: 'Tất cả (Chó & Mèo)', icon: 'paw' },
+                    { key: 'all', label: 'Tất cả', icon: 'paw' },
                     { key: 'dog', label: 'Chó cưng', icon: 'dog' },
                     { key: 'cat', label: 'Mèo cưng', icon: 'cat' },
                   ].map((s) => {
