@@ -448,10 +448,6 @@ export default function BreedScannerScreen() {
             <MaterialCommunityIcons name="cog" size={14} color={colors.textSecondary} style={{ marginLeft: 4 }} />
           </Pressable>
         </View>
-
-        <Text style={[typo.bodySmall, { color: colors.textSecondary, marginTop: 2 }]}>
-          Mô hình EfficientNet-B0 (37 giống chó mèo Oxford-IIIT)
-        </Text>
       </View>
 
       <ScrollView

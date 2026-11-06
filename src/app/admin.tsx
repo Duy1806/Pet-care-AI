@@ -956,48 +956,6 @@ export default function AdminScreen() {
                   </Pressable>
                 </View>
               </View>
-
-              {/* Infrastructure Status */}
-              <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={styles.cardHeader}>
-                  <MaterialCommunityIcons name="server-network" size={20} color={colors.primary} />
-                  <Text style={[typo.titleSmall, { color: colors.text, fontWeight: '700', marginLeft: 8 }]}>
-                    Trạng thái Hạ tầng & Kết nối
-                  </Text>
-                </View>
-
-                <View style={{ marginTop: 12, gap: 10 }}>
-                  <View style={styles.serviceRow}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={[styles.statusDot, { backgroundColor: '#16A34A' }]} />
-                      <Text style={[typo.bodySmall, { color: colors.text, marginLeft: 8 }]}>
-                        Supabase PostgreSQL Cloud
-                      </Text>
-                    </View>
-                    <Text style={[typo.labelSmall, { color: '#16A34A', fontWeight: '700' }]}>Trực tuyến</Text>
-                  </View>
-
-                  <View style={styles.serviceRow}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={[styles.statusDot, { backgroundColor: '#16A34A' }]} />
-                      <Text style={[typo.bodySmall, { color: colors.text, marginLeft: 8 }]}>
-                        SQLite Offline Engine (Local)
-                      </Text>
-                    </View>
-                    <Text style={[typo.labelSmall, { color: '#16A34A', fontWeight: '700' }]}>Đồng bộ 100%</Text>
-                  </View>
-
-                  <View style={styles.serviceRow}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={[styles.statusDot, { backgroundColor: '#16A34A' }]} />
-                      <Text style={[typo.bodySmall, { color: colors.text, marginLeft: 8 }]}>
-                        Google Gemini 2.5 Flash API
-                      </Text>
-                    </View>
-                    <Text style={[typo.labelSmall, { color: '#16A34A', fontWeight: '700' }]}>Sẵn sàng</Text>
-                  </View>
-                </View>
-              </View>
             </View>
           )}
 

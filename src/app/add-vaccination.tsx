@@ -709,37 +709,6 @@ export default function AddVaccinationScreen() {
             </View>
           )}
 
-          {/* SMART NOTIFICATION INFO BOX */}
-          <View
-            style={[
-              styles.reminderNoticeBox,
-              {
-                backgroundColor: colors.primaryContainer,
-                borderColor: colors.primary,
-                borderRadius: radius.lg,
-                marginBottom: spacing.md,
-              },
-            ]}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <MaterialCommunityIcons name="bell-ring-outline" size={22} color={colors.primary} />
-              <Text style={[typo.titleSmall, { color: colors.primary, fontWeight: '700', marginLeft: 6 }]}>
-                Tự động gửi thông báo nhắc nhở 2 lần
-              </Text>
-            </View>
-            <Text style={[typo.bodySmall, { color: colors.text, marginTop: 4, lineHeight: 18 }]}>
-              Khi đến ngày hẹn ({status === 'completed' ? nextDueAt || 'chưa đặt' : scheduledDate}), hệ thống tự động đẩy thông báo trên điện thoại:
-            </Text>
-            <View style={{ marginTop: 6, gap: 4 }}>
-              <Text style={[typo.bodySmall, { color: colors.text }]}>
-                🔔 <Text style={{ fontWeight: '700' }}>Lần 1 — Trước 1 ngày (lúc 09:00 sáng):</Text> Nhắc bạn chuẩn bị sổ sức khỏe và sắp xếp lịch.
-              </Text>
-              <Text style={[typo.bodySmall, { color: colors.text }]}>
-                🚨 <Text style={{ fontWeight: '700' }}>Lần 2 — Đúng ngày tiêm (lúc 08:00 sáng):</Text> Nhắc bạn đưa bé cưng đến phòng khám thú y.
-              </Text>
-            </View>
-          </View>
-
           {/* CLINIC / HOSPITAL */}
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[typo.labelLarge, { color: colors.text, marginBottom: spacing.xs }]}>

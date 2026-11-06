@@ -238,9 +238,6 @@ export default function NutritionScreen() {
         <Text style={[typo.headlineMedium, { color: colors.text }]}>
           Gợi ý Dinh dưỡng AI
         </Text>
-        <Text style={[typo.bodySmall, { color: colors.textSecondary, marginTop: 2 }]}>
-          Tính toán khẩu phần & vi chất chuẩn thú y theo 37 giống loài
-        </Text>
       </View>
 
       <ScrollView
