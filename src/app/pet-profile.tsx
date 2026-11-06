@@ -41,13 +41,68 @@ import { AddPetModal } from '@/presentation/components/AddPetModal';
 import { calculateNutrition } from '@/domain/services/NutritionCalculator';
 import type { Pet, Species } from '@/domain/entities/Pet';
 
+function parseBirthDate(dateStr?: string | null): Date | null {
+  if (!dateStr) return null;
+  const clean = String(dateStr).trim();
+  if (!clean) return null;
+
+  // Format DD/MM/YYYY or DD-MM-YYYY
+  const dmyMatch = clean.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10) - 1;
+    const year = parseInt(dmyMatch[3], 10);
+    const d = new Date(year, month, day);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // Format YYYY-MM-DD or YYYY/MM/DD
+  const ymdMatch = clean.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (ymdMatch) {
+    const year = parseInt(ymdMatch[1], 10);
+    const month = parseInt(ymdMatch[2], 10) - 1;
+    const day = parseInt(ymdMatch[3], 10);
+    const d = new Date(year, month, day);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  const fallback = new Date(clean);
+  return isNaN(fallback.getTime()) ? null : fallback;
+}
+
+function normalizeDateToISO(dateStr?: string | null): string | null {
+  if (!dateStr) return null;
+  const parsed = parseBirthDate(dateStr);
+  if (!parsed) return dateStr.trim() || null;
+  const y = parsed.getFullYear();
+  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+  const d = String(parsed.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatDate(dateStr?: string | null): string {
+  if (!dateStr) return 'Chưa rõ';
+  const parsed = parseBirthDate(dateStr);
+  if (parsed) {
+    const d = String(parsed.getDate()).padStart(2, '0');
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const y = parsed.getFullYear();
+    return `${d}/${m}/${y}`;
+  }
+  return dateStr;
+}
+
 function getAgeString(birthDateStr?: string | null): string {
   if (!birthDateStr) return 'Chưa cập nhật ngày sinh';
-  const birth = new Date(birthDateStr);
-  if (isNaN(birth.getTime())) return 'Chưa cập nhật ngày sinh';
+  const birth = parseBirthDate(birthDateStr);
+  if (!birth) return 'Chưa cập nhật ngày sinh';
+
   const now = new Date();
   const diffMonths = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
-  if (diffMonths < 0) return 'Chưa cập nhật ngày sinh';
+
+  if (diffMonths < 0) {
+    return formatDate(birthDateStr);
+  }
   if (diffMonths < 1) return 'Dưới 1 tháng tuổi';
   if (diffMonths < 12) return `${diffMonths} tháng tuổi`;
   const years = Math.floor(diffMonths / 12);
@@ -55,15 +110,22 @@ function getAgeString(birthDateStr?: string | null): string {
   return remMonths > 0 ? `${years} tuổi ${remMonths} tháng` : `${years} tuổi`;
 }
 
-function formatDate(dateStr?: string | null): string {
-  if (!dateStr) return 'Chưa rõ';
-  try {
-    const [y, m, d] = dateStr.split('-');
-    if (y && m && d) return `${d}/${m}/${y}`;
-    return dateStr;
-  } catch {
-    return dateStr;
+function getHeaderBirthBadge(birthDateStr?: string | null): string {
+  if (!birthDateStr) return 'Chưa cập nhật ngày sinh';
+  const birth = parseBirthDate(birthDateStr);
+  if (!birth) return 'Chưa cập nhật ngày sinh';
+
+  const formatted = formatDate(birthDateStr);
+  const now = new Date();
+  const diffMonths = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+
+  // If birth date is in the future (e.g. 2029)
+  if (diffMonths < 0) {
+    return formatted;
   }
+
+  const ageStr = getAgeString(birthDateStr);
+  return `${formatted} (${ageStr})`;
 }
 
 export default function PetProfileScreen() {
@@ -254,7 +316,7 @@ export default function PetProfileScreen() {
         species: editSpecies,
         breedName: editBreed.trim() || (editSpecies === 'dog' ? 'Chó nhà' : 'Mèo nhà'),
         weightKg: weightNum,
-        birthDate: editBirthDate.trim() || null,
+        birthDate: normalizeDateToISO(editBirthDate),
         sex: editSex,
         isNeutered: editNeutered,
         activityLevel: editActivity,
@@ -567,7 +629,7 @@ export default function PetProfileScreen() {
                     <View style={[styles.statusTag, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
                       <MaterialCommunityIcons name="cake-variant-outline" size={13} color={colors.textSecondary} />
                       <Text style={[typo.labelSmall, { color: colors.textSecondary, marginLeft: 3 }]}>
-                        {getAgeString(currentPet.birthDate)}
+                        {getHeaderBirthBadge(currentPet.birthDate)}
                       </Text>
                     </View>
 
