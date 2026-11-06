@@ -52,153 +52,289 @@ function formatDateVi(dateStr?: string | null): string {
   }
 }
 
+interface ParsedBlock {
+  type: 'h2' | 'h3' | 'quote' | 'bullet' | 'numbered' | 'paragraph';
+  number?: string;
+  text: string;
+}
+
+/** Render inline text with **bold** formatting support */
+function renderInlineText(text: string, baseStyle: any, boldStyle: any) {
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return (
+    <Text style={baseStyle}>
+      {parts.map((part, idx) => {
+        if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+          return (
+            <Text key={idx} style={boldStyle}>
+              {part.slice(2, -2)}
+            </Text>
+          );
+        }
+        return part;
+      })}
+    </Text>
+  );
+}
+
 /** Rich Text / Markdown Content Renderer */
-function RenderArticleContent({ content, colors, typo, spacing, radius }: any) {
-  const blocks = content.split('\n\n');
+function RenderArticleContent({ content, isLargeFont, colors, spacing, radius }: any) {
+  if (!content) return null;
+
+  // 1. Clean & normalize linebreaks (convert literal \n or \\n from database/JSON to real newlines)
+  const normalized = String(content)
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\n')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+
+  // 2. Parse line-by-line into structured semantic blocks
+  const rawLines = normalized.split('\n');
+  const blocks: ParsedBlock[] = [];
+
+  let currentQuote: string[] = [];
+  let currentParagraph: string[] = [];
+
+  const flushParagraph = () => {
+    if (currentParagraph.length > 0) {
+      blocks.push({ type: 'paragraph', text: currentParagraph.join(' ') });
+      currentParagraph = [];
+    }
+  };
+
+  const flushQuote = () => {
+    if (currentQuote.length > 0) {
+      blocks.push({ type: 'quote', text: currentQuote.join(' ') });
+      currentQuote = [];
+    }
+  };
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const rawLine = rawLines[i].trim();
+
+    if (!rawLine) {
+      flushParagraph();
+      flushQuote();
+      continue;
+    }
+
+    // Heading 2 (## ...)
+    if (rawLine.startsWith('## ')) {
+      flushParagraph();
+      flushQuote();
+      blocks.push({ type: 'h2', text: rawLine.replace(/^##\s+/, '') });
+      continue;
+    }
+
+    // Heading 3 (### ...)
+    if (rawLine.startsWith('### ')) {
+      flushParagraph();
+      flushQuote();
+      blocks.push({ type: 'h3', text: rawLine.replace(/^###\s+/, '') });
+      continue;
+    }
+
+    // Blockquote (> ...)
+    if (rawLine.startsWith('>') || rawLine.startsWith('> ')) {
+      flushParagraph();
+      const quoteText = rawLine.replace(/^>\s*/, '');
+      currentQuote.push(quoteText);
+      continue;
+    } else {
+      flushQuote();
+    }
+
+    // Bullet item (- ... or * ... or • ...)
+    if (rawLine.startsWith('- ') || rawLine.startsWith('* ') || rawLine.startsWith('• ')) {
+      flushParagraph();
+      blocks.push({ type: 'bullet', text: rawLine.replace(/^[-*•]\s+/, '') });
+      continue;
+    }
+
+    // Numbered item (1. ... or 2) ...)
+    const numMatch = rawLine.match(/^(\d+)[\.\)]\s+(.*)/);
+    if (numMatch) {
+      flushParagraph();
+      blocks.push({ type: 'numbered', number: numMatch[1], text: numMatch[2] });
+      continue;
+    }
+
+    // Regular line in paragraph
+    currentParagraph.push(rawLine);
+  }
+
+  flushParagraph();
+  flushQuote();
+
+  const isLarge = Boolean(isLargeFont);
+  const baseFontSize = isLarge ? 17 : 15;
+  const baseLineHeight = isLarge ? 28 : 25;
+
+  const textBase = {
+    fontSize: baseFontSize,
+    lineHeight: baseLineHeight,
+    color: colors.text,
+  };
+  const textBold = {
+    fontSize: baseFontSize,
+    lineHeight: baseLineHeight,
+    fontWeight: '700' as const,
+    color: colors.text,
+  };
 
   return (
-    <View style={{ marginTop: spacing.md }}>
-      {blocks.map((block: string, index: number) => {
-        const trimmed = block.trim();
-        if (!trimmed) return null;
-
-        // Heading 2 (##)
-        if (trimmed.startsWith('## ')) {
-          const headingText = trimmed.replace('## ', '');
+    <View style={{ marginTop: spacing.md, gap: 10 }}>
+      {blocks.map((block, idx) => {
+        if (block.type === 'h2') {
           return (
-            <View key={index} style={{ marginTop: spacing.lg, marginBottom: spacing.sm }}>
+            <View key={idx} style={{ marginTop: 20, marginBottom: 4 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <View
                   style={{
                     width: 4,
-                    height: 20,
+                    height: isLarge ? 24 : 20,
                     backgroundColor: colors.primary,
                     borderRadius: 2,
-                    marginRight: spacing.sm,
+                    marginRight: 8,
                   }}
                 />
-                <Text style={[typo.titleLarge, { color: colors.text, fontWeight: '700' }]}>
-                  {headingText}
+                <Text
+                  style={{
+                    fontSize: isLarge ? 20 : 18,
+                    fontWeight: '800',
+                    color: colors.text,
+                    flex: 1,
+                    lineHeight: isLarge ? 28 : 26,
+                  }}
+                >
+                  {block.text}
                 </Text>
               </View>
             </View>
           );
         }
 
-        // Heading 3 (###)
-        if (trimmed.startsWith('### ')) {
-          const headingText = trimmed.replace('### ', '');
+        if (block.type === 'h3') {
           return (
             <Text
-              key={index}
-              style={[
-                typo.titleMedium,
-                { color: colors.text, fontWeight: '700', marginTop: spacing.md, marginBottom: spacing.xs },
-              ]}
+              key={idx}
+              style={{
+                fontSize: isLarge ? 18 : 16,
+                fontWeight: '700',
+                color: colors.text,
+                marginTop: 14,
+                marginBottom: 2,
+                lineHeight: isLarge ? 26 : 24,
+              }}
             >
-              {headingText}
+              {block.text}
             </Text>
           );
         }
 
-        // Blockquote / Tip (> ...)
-        if (trimmed.startsWith('> ')) {
-          const tipText = trimmed.replace(/^>\s*/gm, '');
+        if (block.type === 'quote') {
+          const isWarning =
+            block.text.toLowerCase().includes('cảnh báo') ||
+            block.text.toLowerCase().includes('nguy hiểm') ||
+            block.text.toLowerCase().includes('lưu ý');
+          const accentColor = isWarning ? '#EAB308' : colors.primary;
+          const iconName = isWarning ? 'alert-circle-outline' : 'lightbulb-on-outline';
+
           return (
             <View
-              key={index}
-              style={[
-                styles.tipBox,
-                {
-                  backgroundColor: colors.surfaceElevated,
-                  borderColor: colors.primary,
-                  borderRadius: radius.md,
-                  marginVertical: spacing.sm,
-                  padding: spacing.md,
-                },
-              ]}
+              key={idx}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                backgroundColor: colors.surfaceElevated,
+                borderLeftWidth: 4,
+                borderLeftColor: accentColor,
+                borderRadius: radius.md,
+                padding: 12,
+                marginVertical: 6,
+                gap: 10,
+              }}
             >
-              <MaterialCommunityIcons name="lightbulb-on-outline" size={20} color={colors.primary} />
-              <Text style={[typo.bodyMedium, { color: colors.text, flex: 1, marginLeft: spacing.sm }]}>
-                {tipText}
+              <MaterialCommunityIcons
+                name={iconName as any}
+                size={22}
+                color={accentColor}
+                style={{ marginTop: 2 }}
+              />
+              <View style={{ flex: 1 }}>
+                {renderInlineText(
+                  block.text,
+                  { fontSize: isLarge ? 15 : 14, lineHeight: isLarge ? 24 : 22, color: colors.text },
+                  { fontWeight: '700', color: accentColor }
+                )}
+              </View>
+            </View>
+          );
+        }
+
+        if (block.type === 'bullet') {
+          return (
+            <View
+              key={idx}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                paddingLeft: 4,
+                marginVertical: 2,
+              }}
+            >
+              <Text style={{ color: colors.primary, fontSize: 18, lineHeight: baseLineHeight, marginRight: 8 }}>
+                •
               </Text>
+              <View style={{ flex: 1 }}>
+                {renderInlineText(block.text, textBase, textBold)}
+              </View>
             </View>
           );
         }
 
-        // Bullet lists
-        if (trimmed.includes('\n- ') || trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-          const lines = trimmed.split('\n');
+        if (block.type === 'numbered') {
           return (
-            <View key={index} style={{ marginVertical: spacing.xs }}>
-              {lines.map((line, lIdx) => {
-                const cleanLine = line.replace(/^[-*]\s+/, '').trim();
-                return (
-                  <View key={lIdx} style={{ flexDirection: 'row', alignItems: 'flex-start', marginVertical: 3 }}>
-                    <Text style={{ color: colors.primary, marginRight: 8, fontSize: 16, lineHeight: 22 }}>•</Text>
-                    <Text style={[typo.bodyMedium, { color: colors.text, flex: 1, lineHeight: 24 }]}>
-                      {cleanLine}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          );
-        }
-
-        // Numbered lists (1. , 2. )
-        if (/^\d+\.\s/.test(trimmed)) {
-          const lines = trimmed.split('\n');
-          return (
-            <View key={index} style={{ marginVertical: spacing.xs }}>
-              {lines.map((line, lIdx) => {
-                const match = line.match(/^(\d+)\.\s+(.*)/);
-                if (match) {
-                  return (
-                    <View key={lIdx} style={{ flexDirection: 'row', alignItems: 'flex-start', marginVertical: 4 }}>
-                      <View
-                        style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: 11,
-                          backgroundColor: colors.surfaceElevated,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginRight: 8,
-                          marginTop: 1,
-                        }}
-                      >
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>
-                          {match[1]}
-                        </Text>
-                      </View>
-                      <Text style={[typo.bodyMedium, { color: colors.text, flex: 1, lineHeight: 24 }]}>
-                        {match[2]}
-                      </Text>
-                    </View>
-                  );
-                }
-                return (
-                  <Text key={lIdx} style={[typo.bodyMedium, { color: colors.text, lineHeight: 24 }]}>
-                    {line}
-                  </Text>
-                );
-              })}
+            <View
+              key={idx}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                paddingLeft: 2,
+                marginVertical: 4,
+              }}
+            >
+              <View
+                style={{
+                  width: isLarge ? 26 : 24,
+                  height: isLarge ? 26 : 24,
+                  borderRadius: 13,
+                  backgroundColor: colors.primaryContainer || colors.surfaceElevated,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 10,
+                  marginTop: 1,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '800', color: colors.primary }}>
+                  {block.number}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                {renderInlineText(block.text, textBase, textBold)}
+              </View>
             </View>
           );
         }
 
         // Standard Paragraph
         return (
-          <Text
-            key={index}
-            style={[
-              typo.bodyLarge,
-              { color: colors.text, lineHeight: 26, marginVertical: spacing.xs },
-            ]}
-          >
-            {trimmed}
-          </Text>
+          <View key={idx} style={{ marginVertical: 3 }}>
+            {renderInlineText(block.text, textBase, textBold)}
+          </View>
         );
       })}
     </View>
@@ -212,6 +348,7 @@ export default function ArticleDetailScreen() {
   const { currentArticle, loadArticleDetail, isLoading, articles } = useArticleStore();
 
   const [article, setArticle] = useState<Article | null>(currentArticle?.id === id ? currentArticle : null);
+  const [fontSizeMode, setFontSizeMode] = useState<'normal' | 'large'>('normal');
 
   useEffect(() => {
     if (id) {
@@ -299,17 +436,42 @@ export default function ArticleDetailScreen() {
           <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
         </Pressable>
 
-        <Text style={[typo.titleMedium, { color: colors.text, flex: 1, marginHorizontal: spacing.sm }]} numberOfLines={1}>
+        <Text style={[typo.titleMedium, { color: colors.text, flex: 1, marginHorizontal: spacing.sm, fontWeight: '700' }]} numberOfLines={1}>
           Kiến thức thú cưng
         </Text>
 
-        <Pressable
-          onPress={handleShare}
-          style={[styles.navIconBtn, { backgroundColor: colors.surfaceElevated }]}
-          hitSlop={8}
-        >
-          <MaterialCommunityIcons name="share-variant-outline" size={22} color={colors.text} />
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {/* Toggle Font Size (Normal: 15px / Large: 17px) */}
+          <Pressable
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setFontSizeMode((prev) => (prev === 'normal' ? 'large' : 'normal'));
+            }}
+            style={[
+              styles.navIconBtn,
+              {
+                backgroundColor: fontSizeMode === 'large' ? colors.primaryContainer || '#DBEAFE' : colors.surfaceElevated,
+                borderColor: fontSizeMode === 'large' ? colors.primary : 'transparent',
+                borderWidth: fontSizeMode === 'large' ? 1 : 0,
+              },
+            ]}
+            hitSlop={8}
+          >
+            <MaterialCommunityIcons
+              name={fontSizeMode === 'normal' ? 'format-size' : 'format-font-size-increase'}
+              size={20}
+              color={fontSizeMode === 'large' ? colors.primary : colors.text}
+            />
+          </Pressable>
+
+          <Pressable
+            onPress={handleShare}
+            style={[styles.navIconBtn, { backgroundColor: colors.surfaceElevated }]}
+            hitSlop={8}
+          >
+            <MaterialCommunityIcons name="share-variant-outline" size={20} color={colors.text} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
@@ -385,9 +547,10 @@ export default function ArticleDetailScreen() {
             </Text>
           </View>
 
-          {/* Full Content */}
+          {/* Full Content with Rich Markdown Rendering & Font Scaling */}
           <RenderArticleContent
             content={article.content}
+            isLargeFont={fontSizeMode === 'large'}
             colors={colors}
             typo={typo}
             spacing={spacing}
