@@ -132,7 +132,12 @@ export class SyncEngine {
         const payload = JSON.parse(entry.payload);
 
         if (entry.entity_table === 'profiles') {
-          await supabase.from('profiles').update(payload).eq('id', entry.entity_id);
+          const { data: sessionData } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+          const targetId = UUID_REGEX.test(entry.entity_id) ? entry.entity_id : sessionData.session?.user?.id;
+          if (targetId) {
+            const { error: profError } = await supabase.from('profiles').update(payload).eq('id', targetId);
+            if (profError) throw new Error(profError.message);
+          }
         } else if (entry.operation === 'INSERT' || entry.operation === 'UPDATE') {
           await this.remoteClient.upsert(entry.entity_table, payload);
         } else if (entry.operation === 'DELETE') {

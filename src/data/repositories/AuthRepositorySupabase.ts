@@ -562,25 +562,31 @@ export class AuthRepositorySupabase implements AuthRepository {
       await ExpoSecureStoreAdapter.setItem('petcare_last_user_session', JSON.stringify(updatedSession));
     } catch {}
 
+    // Queue in local outbox for reliable background synchronization
     try {
-      if (Object.keys(updates).length > 0) {
-        await supabase
-          .from('profiles')
-          .update(updates)
-          .eq('id', userId);
-      }
-      if (params.fullName !== undefined) {
-        await supabase.auth.updateUser({
-          data: { full_name: params.fullName.trim() },
-        });
-      }
-    } catch {
-      // Offline fallback: queue in outbox for SyncEngine
+      const db = await getDatabase();
+      const outbox = new OutboxDao(db);
+      await outbox.add('profiles', userId, 'UPDATE', updates);
+    } catch {}
+
+    // If online and UUID is valid, attempt remote update
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (UUID_REGEX.test(userId)) {
       try {
-        const db = await getDatabase();
-        const outbox = new OutboxDao(db);
-        await outbox.add('profiles', userId, 'UPDATE', updates);
-      } catch {}
+        if (Object.keys(updates).length > 0) {
+          await supabase
+            .from('profiles')
+            .update(updates)
+            .eq('id', userId);
+        }
+        if (params.fullName !== undefined) {
+          await supabase.auth.updateUser({
+            data: { full_name: params.fullName.trim() },
+          });
+        }
+      } catch {
+        // Offline: Ignored! Local session updated and outbox queued for auto-sync
+      }
     }
 
     return updatedUser;

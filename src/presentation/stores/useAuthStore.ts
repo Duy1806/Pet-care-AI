@@ -16,6 +16,7 @@ import {
   restoreSessionUseCase,
   authRepository,
 } from '../../di/container';
+import { useSyncStore } from './useSyncStore';
 
 interface AuthState {
   /** Current user, null when not authenticated */
@@ -292,6 +293,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         session: state.session ? { ...state.session, user: updatedUser } : null,
         isLoading: false,
       }));
+      void useSyncStore.getState().refreshPendingCount();
+      if (useSyncStore.getState().isOnline) {
+        void useSyncStore.getState().syncNow();
+      }
       return true;
     } catch (e: any) {
       const message = e instanceof Error ? e.message : 'Không thể cập nhật hồ sơ';
