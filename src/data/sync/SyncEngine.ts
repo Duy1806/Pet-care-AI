@@ -17,62 +17,98 @@ import { supabase } from '../remote/supabaseClient';
 
 export interface RemoteSyncClient {
   upsert(table: string, payload: Record<string, any>): Promise<void>;
+  update(table: string, id: string, payload: Record<string, any>): Promise<void>;
   softDelete(table: string, id: string, deletedAt: string): Promise<void>;
   pullChanges(table: string, since: string | null): Promise<Record<string, any>[]>;
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Default Remote Client using real Supabase */
-export const defaultSupabaseRemoteClient: RemoteSyncClient = {
-  async upsert(table: string, payload: Record<string, any>): Promise<void> {
-    // Strip local-only sync columns before pushing to Supabase
-    const { sync_status, last_synced_at, local_updated_at, ...rawServerPayload } = payload;
-    void sync_status;
-    void last_synced_at;
-    void local_updated_at;
+const VALID_REMINDER_KINDS = ['vaccination', 'deworming', 'recheck', 'custom'];
+const VALID_REPEAT_RULES = ['none', 'monthly', 'quarterly', 'yearly'];
 
-    const serverPayload: Record<string, any> = { ...rawServerPayload };
+async function sanitizeServerPayload(
+  table: string,
+  payload: Record<string, any>,
+): Promise<Record<string, any>> {
+  // Strip local-only sync columns before pushing to Supabase
+  const { sync_status, last_synced_at, local_updated_at, ...rawServerPayload } = payload;
+  void sync_status;
+  void last_synced_at;
+  void local_updated_at;
 
-    // Resolve owner_id: if not a valid UUID (e.g. guest or offline account), replace with real authenticated user id
-    let authUserId: string | null = null;
-    try {
-      const { data } = await supabase.auth.getSession();
-      authUserId = data.session?.user?.id || null;
-    } catch {}
+  const serverPayload: Record<string, any> = { ...rawServerPayload };
 
-    if (serverPayload.owner_id !== undefined) {
-      if (!UUID_REGEX.test(serverPayload.owner_id) && authUserId) {
+  // Resolve current active Supabase authenticated user id
+  let authUserId: string | null = null;
+  try {
+    const { data } = await supabase.auth.getSession();
+    authUserId = data.session?.user?.id || null;
+  } catch {}
+
+  // If user is logged in, guarantee that owner_id matches auth.uid() to satisfy RLS policies
+  if (authUserId && UUID_REGEX.test(authUserId)) {
+    if (table === 'pets' || table === 'reminders' || table === 'breed_predictions') {
+      if (!serverPayload.owner_id || !UUID_REGEX.test(serverPayload.owner_id) || serverPayload.owner_id !== authUserId) {
         serverPayload.owner_id = authUserId;
       }
     }
+  }
 
-    if (table === 'pets') {
-      if (serverPayload.is_neutered !== undefined) {
-        serverPayload.is_neutered = Boolean(serverPayload.is_neutered);
-      }
-      if (serverPayload.breed_id && !UUID_REGEX.test(serverPayload.breed_id)) {
-        serverPayload.breed_id = null;
-      }
-      if (serverPayload.current_weight_kg !== undefined && serverPayload.current_weight_kg !== null) {
-        serverPayload.current_weight_kg = Number(serverPayload.current_weight_kg);
-      }
-    } else if (table === 'reminders') {
-      if (serverPayload.is_done !== undefined) {
-        serverPayload.is_done = Boolean(serverPayload.is_done);
-      }
-    } else if (table === 'weight_logs') {
-      if (serverPayload.weight_kg !== undefined) {
-        serverPayload.weight_kg = Number(serverPayload.weight_kg);
-      }
-    } else if (table === 'vaccinations') {
-      if (serverPayload.administered_at) {
-        serverPayload.administered_at = new Date(serverPayload.administered_at).toISOString();
-      }
-      if (serverPayload.next_due_at) {
-        serverPayload.next_due_at = new Date(serverPayload.next_due_at).toISOString();
-      }
+  if (table === 'pets') {
+    if (serverPayload.is_neutered !== undefined) {
+      serverPayload.is_neutered = Boolean(serverPayload.is_neutered);
     }
+    if (serverPayload.breed_id && !UUID_REGEX.test(serverPayload.breed_id)) {
+      serverPayload.breed_id = null;
+    }
+    if (serverPayload.current_weight_kg !== undefined && serverPayload.current_weight_kg !== null) {
+      serverPayload.current_weight_kg = Number(serverPayload.current_weight_kg);
+    }
+    if (serverPayload.sex && !['male', 'female', 'unknown'].includes(serverPayload.sex)) {
+      serverPayload.sex = 'unknown';
+    }
+    if (serverPayload.activity_level && !['low', 'moderate', 'high'].includes(serverPayload.activity_level)) {
+      serverPayload.activity_level = 'moderate';
+    }
+    if (serverPayload.species && !['dog', 'cat', 'other'].includes(serverPayload.species)) {
+      serverPayload.species = 'dog';
+    }
+  } else if (table === 'reminders') {
+    if (serverPayload.is_done !== undefined) {
+      serverPayload.is_done = Boolean(serverPayload.is_done);
+    }
+    // Postgres CHECK: kind IN ('vaccination', 'deworming', 'recheck', 'custom')
+    if (serverPayload.kind && !VALID_REMINDER_KINDS.includes(serverPayload.kind)) {
+      serverPayload.kind = 'custom';
+    }
+    // Postgres CHECK: repeat_rule IN ('none', 'monthly', 'quarterly', 'yearly')
+    if (serverPayload.repeat_rule && !VALID_REPEAT_RULES.includes(serverPayload.repeat_rule)) {
+      serverPayload.repeat_rule = 'none';
+    }
+  } else if (table === 'weight_logs') {
+    if (serverPayload.weight_kg !== undefined) {
+      serverPayload.weight_kg = Number(serverPayload.weight_kg);
+    }
+  } else if (table === 'vaccinations') {
+    if (serverPayload.administered_at) {
+      serverPayload.administered_at = new Date(serverPayload.administered_at).toISOString();
+    }
+    if (serverPayload.next_due_at) {
+      serverPayload.next_due_at = new Date(serverPayload.next_due_at).toISOString();
+    }
+    if (serverPayload.type && !['vaccine', 'deworming', 'flea_tick'].includes(serverPayload.type)) {
+      serverPayload.type = 'vaccine';
+    }
+  }
+
+  return serverPayload;
+}
+
+/** Default Remote Client using real Supabase */
+export const defaultSupabaseRemoteClient: RemoteSyncClient = {
+  async upsert(table: string, payload: Record<string, any>): Promise<void> {
+    const serverPayload = await sanitizeServerPayload(table, payload);
 
     const { error } = await supabase.from(table).upsert(serverPayload);
     if (error) {
@@ -81,12 +117,47 @@ export const defaultSupabaseRemoteClient: RemoteSyncClient = {
     }
   },
 
+  async update(table: string, id: string, payload: Record<string, any>): Promise<void> {
+    const serverPayload = await sanitizeServerPayload(table, payload);
+    delete serverPayload.id; // Do not update primary key column
+
+    const { data, error } = await supabase
+      .from(table)
+      .update(serverPayload)
+      .eq('id', id)
+      .select('id');
+
+    if (error) {
+      console.warn(`[SyncEngine] Update failed for table '${table}':`, error.message, serverPayload);
+      throw new Error(error.message);
+    }
+
+    // If update touched 0 rows, row may not exist remotely yet; attempt fallback upsert with full payload
+    if (!data || data.length === 0) {
+      const fullPayload = await sanitizeServerPayload(table, { id, ...payload });
+      const { error: upsertErr } = await supabase.from(table).upsert(fullPayload);
+      if (upsertErr) {
+        console.warn(`[SyncEngine] Fallback upsert after update on '${table}' failed:`, upsertErr.message);
+      }
+    }
+  },
+
   async softDelete(table: string, id: string, deletedAt: string): Promise<void> {
+    if (table === 'pets') {
+      try {
+        const { error: rpcError } = await supabase.rpc('delete_pet', { pet_uuid: id });
+        if (!rpcError) return;
+      } catch {}
+    }
+
     const { error } = await supabase
       .from(table)
       .update({ deleted_at: deletedAt, updated_at: deletedAt })
       .eq('id', id);
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.warn(`[SyncEngine] SoftDelete warning for table '${table}':`, error.message);
+      throw new Error(error.message);
+    }
   },
 
   async pullChanges(table: string, since: string | null): Promise<Record<string, any>[]> {
@@ -128,6 +199,13 @@ export class SyncEngine {
     const errors: string[] = [];
 
     for (const entry of entries) {
+      // Discard poison pills that failed 10+ times to avoid clogging outbox forever
+      if (entry.attempt_count >= 10) {
+        console.warn(`[SyncEngine] Dropping poison pill entry ${entry.entity_table}:${entry.entity_id} after ${entry.attempt_count} failures.`);
+        await this.outboxDao.remove(entry.id);
+        continue;
+      }
+
       try {
         const payload = JSON.parse(entry.payload);
 
@@ -138,7 +216,9 @@ export class SyncEngine {
             const { error: profError } = await supabase.from('profiles').update(payload).eq('id', targetId);
             if (profError) throw new Error(profError.message);
           }
-        } else if (entry.operation === 'INSERT' || entry.operation === 'UPDATE') {
+        } else if (entry.operation === 'UPDATE') {
+          await this.remoteClient.update(entry.entity_table, entry.entity_id, payload);
+        } else if (entry.operation === 'INSERT') {
           await this.remoteClient.upsert(entry.entity_table, payload);
         } else if (entry.operation === 'DELETE') {
           await this.remoteClient.softDelete(

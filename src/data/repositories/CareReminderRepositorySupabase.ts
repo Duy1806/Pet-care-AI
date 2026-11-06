@@ -209,11 +209,14 @@ export class CareReminderRepositorySupabase {
     );
     const remindAtIso = remindDate.toISOString();
 
+    const VALID_SUPABASE_KINDS = ['vaccination', 'deworming', 'recheck', 'custom'];
+    const supabaseKind = VALID_SUPABASE_KINDS.includes(reminder.category) ? reminder.category : 'custom';
+
     try {
       const rowToInsert = {
         pet_id: reminder.petId,
         owner_id: resolvedOwnerId,
-        kind: reminder.category || 'custom',
+        kind: supabaseKind,
         title: reminder.title,
         remind_at: remindAtIso,
         repeat_rule: 'none',

@@ -145,6 +145,7 @@ class InMemoryDatabaseMock {
 describe('SyncEngine', () => {
   let dbMock: InMemoryDatabaseMock;
   let remoteUpsertMock: jest.Mock;
+  let remoteUpdateMock: jest.Mock;
   let remoteSoftDeleteMock: jest.Mock;
   let remotePullMock: jest.Mock;
   let mockRemoteClient: RemoteSyncClient;
@@ -154,11 +155,13 @@ describe('SyncEngine', () => {
   beforeEach(() => {
     dbMock = new InMemoryDatabaseMock();
     remoteUpsertMock = jest.fn().mockResolvedValue(undefined);
+    remoteUpdateMock = jest.fn().mockResolvedValue(undefined);
     remoteSoftDeleteMock = jest.fn().mockResolvedValue(undefined);
     remotePullMock = jest.fn().mockResolvedValue([]);
 
     mockRemoteClient = {
       upsert: remoteUpsertMock,
+      update: remoteUpdateMock,
       softDelete: remoteSoftDeleteMock,
       pullChanges: remotePullMock,
     };

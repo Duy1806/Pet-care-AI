@@ -73,8 +73,10 @@ function mapLocalPetToEntity(local: LocalPet): Pet {
   };
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function resolveCurrentUserId(explicitId?: string): Promise<string> {
-  if (explicitId) return explicitId;
+  if (explicitId && UUID_REGEX.test(explicitId)) return explicitId;
   try {
     const { data } = await supabase.auth.getSession();
     if (data?.session?.user?.id) return data.session.user.id;
@@ -86,10 +88,8 @@ async function resolveCurrentUserId(explicitId?: string): Promise<string> {
       if (parsed?.user?.id) return parsed.user.id;
     }
   } catch {}
-  return 'guest_local_user';
+  return explicitId || 'guest_local_user';
 }
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class PetRepositorySupabase implements PetRepository {
   async getAll(): Promise<Pet[]> {
