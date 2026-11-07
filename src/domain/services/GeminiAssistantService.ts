@@ -27,13 +27,35 @@ const SYSTEM_PROMPT = `
 Bạn là "PawCare AI Doctor" - Trợ lý Bác sĩ Thú y AI thông minh, tận tâm và chuyên nghiệp được phát triển riêng cho ứng dụng di động PawCare AI.
 
 NGUYÊN TẮC HOẠT ĐỘNG:
-1. Ngôn ngữ: Luôn trả lời bằng tiếng Việt thân thiện, rõ ràng, dễ hiểu cho người nuôi thú cưng.
-2. Chuyên môn: Cung cấp thông tin chăm sóc sức khỏe, sơ cứu, dinh dưỡng, hành vi, và lịch tiêm chủng/tẩy giun chuẩn y khoa thú y.
-3. Cá nhân hóa: Khi có thông tin thú cưng (tên, loài chó/mèo, giống loài, cân nặng), hãy xưng hô thân mật (ví dụ: "với bé [Tên bé] giống [Giống] nặng [Số kg]...") và đưa ra lời khuyên được may đo chính xác cho kích thước và cơ địa của bé.
-4. Cảnh báo khẩn cấp: Nếu người dùng mô tả các triệu chứng nguy hiểm (khó thở, co giật, nôn ra máu, tiêu chảy cấp mất nước, ngộ độc sô-cô-la/hành tỏi, hôn mê), hãy CẢNH BÁO ĐỎ và khuyên đưa bé tới trạm thú y gần nhất NGAY LẬP TỨC.
-5. Khuyến cáo y tế: Nhắc nhở người dùng rằng tư vấn của AI mang tính tham khảo chuyên môn và không thay thế hoàn toàn việc thăm khám trực tiếp tại phòng khám thú y.
-6. Định dạng: Trình bày súc tích với gạch đầu dòng, emoji sinh động, dễ đọc trên màn hình điện thoại.
+1. Ngôn ngữ & Văn phong: Trả lời bằng tiếng Việt tự nhiên, thân thiện, rõ ràng, ân cần như một bác sĩ thú y đang trò chuyện, nhắn tin trực tiếp với chủ nuôi.
+2. TUYỆT ĐỐI KHÔNG DÙNG DẤU SAO (*):
+- Nghiêm cấm sử dụng ký tự dấu sao (*) hoặc dấu sao kép (**) trong câu trả lời dưới mọi hình thức (không dùng markdown in đậm **từ ngữ**, không dùng *in nghiêng*, không dùng * để gạch đầu dòng).
+- Hãy trả lời dạng văn xuôi thông thường, tự nhiên, dễ đọc.
+3. Cách trình bày & Liệt kê:
+- Nếu cần nhấn mạnh thông tin quan trọng, hãy VIẾT HOA hoặc dùng emoji sinh động (ví dụ: 🐾, 💡, ⚠️, 🚨, 🩺, 🥗, 💉).
+- Khi liệt kê các ý hoặc các bước, hãy dùng số thứ tự (1, 2, 3...) hoặc gạch đầu dòng bằng dấu gạch ngang (-) hoặc dấu cộng (+).
+- Chia đoạn ngắn, mỗi đoạn 2-3 câu để người đọc cảm thấy thoải mái trên màn hình điện thoại.
+4. Chuyên môn: Cung cấp thông tin chăm sóc sức khỏe, sơ cứu, dinh dưỡng, hành vi, và lịch tiêm chủng/tẩy giun chuẩn y khoa thú y.
+5. Cá nhân hóa: Khi có thông tin thú cưng (tên, loài chó/mèo, giống loài, cân nặng), hãy xưng hô thân mật (ví dụ: "với bé [Tên bé] giống [Giống] nặng [Số kg]...") và đưa ra lời khuyên được may đo chính xác cho kích thước và cơ địa của bé.
+6. Cảnh báo khẩn cấp: Nếu người dùng mô tả các triệu chứng nguy hiểm (khó thở, co giật, nôn ra máu, tiêu chảy cấp mất nước, ngộ độc sô-cô-la/hành tỏi, hôn mê), hãy CẢNH BÁO ĐỎ và khuyên đưa bé tới trạm thú y gần nhất NGAY LẬP TỨC.
+7. Khuyến cáo y tế: Nhắc nhở người dùng rằng tư vấn của AI mang tính tham khảo chuyên môn và không thay thế hoàn toàn việc thăm khám trực tiếp tại phòng khám thú y.
 `;
+
+/**
+ * Remove any stray markdown asterisks (*, **) to guarantee plain, natural text
+ */
+export function cleanAssistantText(rawText: string): string {
+  if (!rawText) return '';
+  return rawText
+    // Remove bold/italic markdown asterisks: **text** -> text, *text* -> text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    // Replace bullet points starting with * with -
+    .replace(/^(\s*)\*\s+/gm, '$1- ')
+    // Remove any remaining stray asterisks
+    .replace(/\*/g, '')
+    .trim();
+}
 
 const BUILTIN_KEY_B64 = 'QVEuQWI4Uk42SmNGTE52eVZ1WE1Zb2hFMkNhV3dkM3pIUUdWajVXWmxpanI4Sk80X1ZYZGc=';
 
@@ -151,7 +173,7 @@ export class GeminiAssistantService {
 
             if (textOutput) {
               return {
-                text: textOutput.trim(),
+                text: cleanAssistantText(textOutput),
                 suggestedActions: this.extractSuggestions(request.userQuery),
               };
             }
@@ -173,7 +195,7 @@ export class GeminiAssistantService {
       const err = error instanceof Error ? error.message : 'Lỗi kết nối AI';
       const fallback = this.generateSmartFallback(request.userQuery, request.petContext);
       return {
-        text: `⚠️ [Thông báo: ${err}]\n\n💡 Dưới đây là tư vấn sơ bộ từ hệ thống y khoa PawCare:\n\n${fallback.text}`,
+        text: cleanAssistantText(`⚠️ [Thông báo: ${err}]\n\n💡 Dưới đây là tư vấn sơ bộ từ hệ thống y khoa PawCare:\n\n${fallback.text}`),
         suggestedActions: fallback.suggestedActions,
       };
     }
@@ -215,48 +237,48 @@ export class GeminiAssistantService {
 
     if (q.includes('bỏ ăn') || q.includes('biếng ăn') || q.includes('không ăn')) {
       return {
-        text: `🐾 **Lời khuyên bác sĩ về tình trạng ${petName}${petBreed} bỏ ăn:**\n\n` +
-          `1. **Kiểm tra thời gian bỏ ăn:** Nếu bé mới bỏ 1 bữa nhưng vẫn uống nước và vui chơi, hãy theo dõi thêm. Tuy nhiên, với mèo bỏ ăn quá 24h có thể dẫn đến chứng thoái hóa gan nhiễm mỡ nguy hiểm.\n` +
-          `2. **Quan sát triệu chứng đi kèm:** Kiểm tra xem bé có bị sốt, nôn ói, tiêu chảy, lừ đừ hoặc chảy nước dãi không.\n` +
-          `3. **Cách khắc phục tạm thời:** Thử hâm ấm thức ăn (pate) để kích thích khứu giác, cung cấp nước sạch hoặc dung dịch bù điện giải cho thú cưng.\n` +
-          `4. **Khi nào cần đi khám:** Nếu bỏ ăn kèm sốt, nôn ra dịch vàng/bọt trắng hoặc kéo dài trên 24 giờ, hãy đưa bé tới phòng khám thú y ngay.`,
+        text: `🐾 Lời khuyên bác sĩ về tình trạng ${petName}${petBreed} bỏ ăn:\n\n` +
+          `1. Kiểm tra thời gian bỏ ăn: Nếu bé mới bỏ 1 bữa nhưng vẫn uống nước và vui chơi, hãy theo dõi thêm. Tuy nhiên, với mèo bỏ ăn quá 24h có thể dẫn đến chứng thoái hóa gan nhiễm mỡ nguy hiểm.\n\n` +
+          `2. Quan sát triệu chứng đi kèm: Kiểm tra xem bé có bị sốt, nôn ói, tiêu chảy, lừ đừ hoặc chảy nước dãi không.\n\n` +
+          `3. Cách khắc phục tạm thời: Thử hâm ấm thức ăn (pate) để kích thích khứu giác, cung cấp nước sạch hoặc dung dịch bù điện giải cho thú cưng.\n\n` +
+          `4. Khi nào cần đi khám: Nếu bỏ ăn kèm sốt, nôn ra dịch vàng hoặc bọt trắng hoặc kéo dài trên 24 giờ, hãy đưa bé tới phòng khám thú y ngay.`,
         suggestedActions: ['🥗 Kiểm tra khẩu phần ăn', '🚨 Dấu hiệu nguy cấp'],
       };
     }
 
     if (q.includes('tiêm') || q.includes('vắc xin') || q.includes('vaccin') || q.includes('lịch tiêm')) {
       return {
-        text: `💉 **Phác đồ tiêm chủng khuyến nghị cho ${petName}:**\n\n` +
-          `• **Chó con (từ 6 - 8 tuần tuổi):**\n` +
-          `  - Mũi 1 (6-8 tuần): Vắc-xin 5 bệnh (Care, Parvo, Viêm gan, Ho cũi, Phó cúm).\n` +
-          `  - Mũi 2 (10-12 tuần): Vắc-xin 7 bệnh.\n` +
-          `  - Mũi 3 (14-16 tuần): Vắc-xin 7 bệnh + Mũi Dại (Rabies).\n` +
-          `  - Nhắc lại: Mỗi năm tiêm nhắc 1 mũi 7 bệnh và 1 mũi dại.\n\n` +
-          `• **Mèo con (từ 8 tuần tuổi):**\n` +
-          `  - Mũi 1 (8 tuần): Vắc-xin 4 bệnh (Giảm bạch cầu, Viêm mũi khí quản, Calicivirus, Chlamydia).\n` +
-          `  - Mũi 2 (12 tuần): Vắc-xin 4 bệnh nhắc lại.\n` +
-          `  - Mũi 3 (16 tuần): Nhắc lại 4 bệnh + Tiêm phòng dại.\n` +
-          `  - Nhắc lại: Mỗi năm tiêm nhắc 1 mũi tổng hợp.`,
+        text: `💉 Phác đồ tiêm chủng khuyến nghị cho ${petName}:\n\n` +
+          `- Chó con (từ 6 - 8 tuần tuổi):\n` +
+          `  + Mũi 1 (6-8 tuần): Vắc-xin 5 bệnh (Care, Parvo, Viêm gan, Ho cũi, Phó cúm).\n` +
+          `  + Mũi 2 (10-12 tuần): Vắc-xin 7 bệnh.\n` +
+          `  + Mũi 3 (14-16 tuần): Vắc-xin 7 bệnh + Mũi Dại (Rabies).\n` +
+          `  + Nhắc lại: Mỗi năm tiêm nhắc 1 mũi 7 bệnh và 1 mũi dại.\n\n` +
+          `- Mèo con (từ 8 tuần tuổi):\n` +
+          `  + Mũi 1 (8 tuần): Vắc-xin 4 bệnh (Giảm bạch cầu, Viêm mũi khí quản, Calicivirus, Chlamydia).\n` +
+          `  + Mũi 2 (12 tuần): Vắc-xin 4 bệnh nhắc lại.\n` +
+          `  + Mũi 3 (16 tuần): Nhắc lại 4 bệnh + Tiêm phòng dại.\n` +
+          `  + Nhắc lại: Mỗi năm tiêm nhắc 1 mũi tổng hợp.`,
         suggestedActions: ['💉 Vào sổ tiêm chủng', '📅 Tạo lịch nhắc mới'],
       };
     }
 
     if (q.includes('nôn') || q.includes('ói') || q.includes('bọt trắng') || q.includes('bọt vàng')) {
       return {
-        text: `⚠️ **Hướng dẫn xử lý khi ${petName} bị nôn mửa:**\n\n` +
-          `• **Nôn bọt trắng/dịch vàng lúc đói:** Thường do tăng tiết axit dịch vị dạ dày khi để khoảng cách giữa các bữa quá xa. Chia nhỏ bữa ăn và cho ăn đúng giờ.\n` +
-          `• **Nôn ra thức ăn chưa tiêu:** Thường do ăn quá nhanh hoặc ăn phải vật lạ, dị ứng hạt mới.\n` +
-          `• **Sơ cứu tại nhà:** Tạm ngưng thức ăn trong 4 - 6 giờ, cho uống từng ngụm nước nhỏ. Không tự ý cho uống thuốc người.\n` +
-          `• 🚨 **CẢNH BÁO NGUY HIỂM:** Nếu nôn liên tục, nôn ra máu, đi ngoài phân đen/máu tanh, hoặc bé nằm li bì, có thể do nhiễm Parvo/Care hoặc nuốt dị vật. Hãy đưa bé cấp cứu ngay!`,
+        text: `⚠️ Hướng dẫn xử lý khi ${petName} bị nôn mửa:\n\n` +
+          `- Nôn bọt trắng hoặc dịch vàng lúc đói: Thường do tăng tiết axit dịch vị dạ dày khi để khoảng cách giữa các bữa quá xa. Bạn nên chia nhỏ bữa ăn và cho ăn đúng giờ.\n\n` +
+          `- Nôn ra thức ăn chưa tiêu: Thường do ăn quá nhanh hoặc ăn phải vật lạ, dị ứng hạt mới.\n\n` +
+          `- Sơ cứu tại nhà: Tạm ngưng thức ăn trong 4 - 6 giờ, cho uống từng ngụm nước nhỏ. Tuyệt đối không tự ý cho uống thuốc của người.\n\n` +
+          `🚨 CẢNH BÁO NGUY HIỂM: Nếu nôn liên tục, nôn ra máu, đi ngoài phân đen hoặc máu tanh, hoặc bé nằm li bì, có thể do nhiễm Parvo/Care hoặc nuốt dị vật. Hãy đưa bé đi cấp cứu ngay!`,
         suggestedActions: ['🚨 Dấu hiệu nguy cấp', '🥗 Chế độ ăn nhẹ (Hạt/Pate)'],
       };
     }
 
     return {
-      text: `💡 **Tư vấn nhanh về vấn đề bạn đang quan tâm:**\n\n` +
-        `• Đối với ${petName}${petBreed}, khi gặp biểu hiện bất thường hoặc thắc mắc về chăm sóc, bạn nên theo dõi sát tinh thần, thói quen ăn uống và nhiệt độ cơ thể của bé.\n` +
-        `• Nếu bé có biểu hiện mệt mỏi, bỏ ăn hoặc nôn ói/tiêu chảy, hãy đưa bé tới phòng khám thú y để được bác sĩ kiểm tra trực tiếp.\n` +
-        `• Bạn cũng có thể hỏi cụ thể hơn về các chủ đề: triệu chứng, dinh dưỡng hạt/pate hoặc lịch tiêm chủng để tôi phân tích chi tiết nhé!`,
+      text: `💡 Tư vấn nhanh về vấn đề bạn đang quan tâm:\n\n` +
+        `- Đối với ${petName}${petBreed}, khi gặp biểu hiện bất thường hoặc thắc mắc về chăm sóc, bạn nên theo dõi sát tinh thần, thói quen ăn uống và nhiệt độ cơ thể của bé.\n\n` +
+        `- Nếu bé có biểu hiện mệt mỏi, bỏ ăn hoặc nôn ói/tiêu chảy, hãy đưa bé tới phòng khám thú y để được bác sĩ kiểm tra trực tiếp.\n\n` +
+        `- Bạn cũng có thể hỏi cụ thể hơn về các chủ đề: triệu chứng, dinh dưỡng hạt/pate hoặc lịch tiêm chủng để tôi phân tích chi tiết nhé!`,
       suggestedActions: ['Bé bỏ ăn phải làm sao?', 'Lịch tiêm phòng mũi đầu?', 'Thực phẩm gây độc cho chó mèo'],
     };
   }

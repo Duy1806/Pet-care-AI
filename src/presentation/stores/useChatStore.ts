@@ -10,7 +10,7 @@
 import { create } from 'zustand';
 import * as Crypto from 'expo-crypto';
 import type { ChatConversation, ChatMessage } from '@/domain/entities/ChatMessage';
-import { GeminiAssistantService, type PetContext } from '@/domain/services/GeminiAssistantService';
+import { GeminiAssistantService, cleanAssistantText, type PetContext } from '@/domain/services/GeminiAssistantService';
 import { ChatHistoryDao } from '@/data/local/ChatHistoryDao';
 import { ChatRepositorySupabase } from '@/data/repositories/ChatRepositorySupabase';
 
@@ -19,7 +19,7 @@ const chatRepo = new ChatRepositorySupabase();
 export const INITIAL_WELCOME_MESSAGE: ChatMessage = {
   id: 'msg_welcome',
   sender: 'assistant',
-  text: 'Xin chào! Tôi là **PawCare AI Doctor** - Bác sĩ Thú y AI của bạn. 🩺🐾\n\nTôi có thể giải đáp các thắc mắc về sức khỏe, biểu hiện bất thường, khẩu phần dinh dưỡng hoặc lịch tiêm chủng cho thú cưng của bạn. Hãy gửi câu hỏi cho tôi nhé!',
+  text: 'Xin chào! Tôi là PawCare AI Doctor - Bác sĩ Thú y AI của bạn. 🩺🐾\n\nTôi có thể giải đáp các thắc mắc về sức khỏe, biểu hiện bất thường, khẩu phần dinh dưỡng hoặc lịch tiêm chủng cho thú cưng của bạn. Hãy gửi câu hỏi cho tôi nhé!',
   timestamp: Date.now(),
   suggestedActions: [
     'Bé nhà mình bỏ ăn 1 ngày có sao không?',
@@ -274,7 +274,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         id: aiMsgId,
         conversationId: convId,
         sender: 'assistant',
-        text: response.text,
+        text: cleanAssistantText(response.text),
         timestamp: Date.now(),
         suggestedActions: response.suggestedActions,
       };

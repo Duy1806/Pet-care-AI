@@ -34,6 +34,7 @@ import { useAppTheme } from '@/presentation/theme';
 import { useChatStore } from '@/presentation/stores/useChatStore';
 import { usePetStore } from '@/presentation/stores/usePetStore';
 import type { ChatMessage } from '@/domain/entities/ChatMessage';
+import { cleanAssistantText } from '@/domain/services/GeminiAssistantService';
 
 const BUBBLE_SIZE = 60;
 
@@ -286,7 +287,7 @@ export function FloatingAssistantBubble() {
                 ]}
                 selectable
               >
-                {item.text}
+                {cleanAssistantText(item.text)}
               </Text>
             </View>
 
